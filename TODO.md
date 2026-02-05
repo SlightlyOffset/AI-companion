@@ -2,7 +2,7 @@
 
 ## Phase 1: Foundation
 
-- [ ] Initialize Python virtual environment and install dependencies (`SpeechRecognition`, `pyttsx3`, `pyaudio`)
+- [x] Initialize Python virtual environment and install dependencies (`SpeechRecognition`, `pyttsx3`, `pyaudio`)
 - [ ] Implement `src/voice.py` for Text-to-Speech (TTS) and Speech-to-Text (STT)
 - [ ] Create basic `main.py` listener loop
 
@@ -14,6 +14,8 @@
 
 ## Phase 3: Features & Polishing
 
+- [ ] Train AI actual LLM model
+- [ ] Add actual AI
 - [ ] Add more complex triggers (time, weather, or jokes)
 - [ ] Refine sassy response library
 - [ ] Implement background operation / system tray support
