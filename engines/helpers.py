@@ -1,3 +1,4 @@
+import re
 import os
 import sys
 import time
@@ -83,4 +84,18 @@ def is_online(host="8.8.8.8", port=53, timeout=3):
         return True
     except (socket.timeout, socket.error):
         return False
+
+def clean_text_for_tts(text: str) -> str:
+    """
+    Removes text between asterisks (usually actions/narration in RP)
+    so they aren't spoken out loud.
+    """
+    # Remove text inside *asterisks*
+    cleaned = re.sub(r'\*.*?\*', '', text)
+    # Remove double spaces left behind
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
+
+
 

@@ -44,10 +44,14 @@ def main():
             if user_input.lower() in ["exit", "quit"]: break
 
             is_cmd = is_command(user_input)
+            
+            # Robust weight lookup
+            good_w = profile.get("good_weight") or profile.get("obedient_weight") or 5
+            bad_w = profile.get("bad_weight") or profile.get("sass_weight") or 5
+            
             mood = random.choices(["good", "bad"],
-                                  weights=[profile["sass_weight"],
-                                           profile["obedient_weight"]],
-                                           k=1)[0]
+                                  weights=[good_w, bad_w],
+                                  k=1)[0]
             should_obey = (mood == "good")
 
             # Spinner and LLM Response
@@ -56,7 +60,7 @@ def main():
             spinner_thread.start()
 
             try:
-                response = get_respond(mood, user_input, profile)
+                response = get_respond(mood, user_input, profile, should_obey=should_obey)
             finally:
                 stop_event.set()
                 spinner_thread.join()

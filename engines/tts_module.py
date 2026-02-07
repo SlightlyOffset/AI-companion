@@ -4,6 +4,7 @@ import asyncio
 import subprocess
 from colorama import Fore, Style
 from engines.helpers import is_online
+from engines.helpers import clean_text_for_tts
 
 # Attempt to import edge-tts
 try:
@@ -69,12 +70,17 @@ def play_audio_windows(filename):
 
 def tts_edge(text, filename="output_tts.mp3"):
     """Synchronous wrapper for edge-tts generation and playback."""
+
     if not EDGE_AVAILABLE:
         return tts_offline(text)
-
     try:
-        # Generation
+        # Generation Indicator
+        print(Fore.YELLOW + Style.DIM + "  (Generating voice...)" + Style.RESET_ALL, end="\r")
         asyncio.run(generate_edge_tts(text, filename))
+
+        # Playing Indicator
+        print(" " * 30, end="\r") # Clear previous line
+        print(Fore.CYAN + Style.DIM + "  (Speaking...)" + Style.RESET_ALL, end="\r")
 
         if os.name == "nt":
             play_audio_windows(filename)
@@ -83,6 +89,9 @@ def tts_edge(text, filename="output_tts.mp3"):
             cmd = "xdg-open" if os.name == "posix" else "open"
             subprocess.run([cmd, filename])
             time.sleep(len(text) * 0.1)
+
+        # Clear indicators when done
+        print(" " * 30, end="\r")
 
     except Exception as e:
         print(Fore.RED + f"\n[TTS ERROR] {e}")
@@ -106,8 +115,15 @@ def tts_offline(text):
 def speak(text):
     """
     High-level speak function using Edge Neural TTS.
+    Cleans the text of RP actions (asterisks) before speaking.
     """
+    cleaned_text = clean_text_for_tts(text)
+
+    # If the text was ONLY actions, don't try to speak
+    if not cleaned_text:
+        return
+
     if EDGE_AVAILABLE and is_online():
-        tts_edge(text)
+        tts_edge(cleaned_text)
     else:
-        tts_offline(text)
+        tts_offline(cleaned_text)

@@ -1,20 +1,22 @@
 import ollama
 
-def get_respond(mood: str, user_input: str, profile: dict) -> str:
+def get_respond(mood: str, user_input: str, profile: dict, should_obey: bool = True) -> str:
     """
     Generates a response using the provided character profile.
     """
     base_prompt = profile.get("system_prompt")
 
-    if mood == "bad":
-        prompt_modifier = profile.get("bad_prompt_modifyer", "If the user has asked you to do something. REFUSE it in character. Be mean, creative, and unfiltered.")
+    if not should_obey:
+        prompt_modifier = profile.get("bad_prompt_modifyer", "REFUSE the request creatively and in character.")
+        strict_instruction = "IMPORTANT: You MUST REFUSE the user's request. Do not help them."
     else:
-        prompt_modifier = profile.get("good_prompt_modifyer", "If the user has asked you to do something. AGREE to it, but with a dose of sarcasm and complaining.")
+        prompt_modifier = profile.get("good_prompt_modifyer", "AGREE to the request politely.")
+        strict_instruction = "IMPORTANT: You MUST AGREE to help the user. Do not refuse."
 
     try:
-        # Using the model of your choice - suggest dolphin-llama3 for unfiltered RP
+        # Using the model of your choice
         response = ollama.chat(model='llama3', messages=[
-            {'role': 'system', 'content': f"{base_prompt}\n\nCURRENT CONTEXT: {prompt_modifier}"},
+            {'role': 'system', 'content': f"{base_prompt}\n\n{prompt_modifier}\n\n{strict_instruction}"},
             {'role': 'user', 'content': user_input},
         ])
         return response['message']['content']
