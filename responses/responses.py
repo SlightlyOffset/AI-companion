@@ -4,12 +4,12 @@ def get_respond(mood: str, user_input: str, profile: dict) -> str:
     """
     Generates a response using the provided character profile.
     """
-    base_prompt = profile.get("system_prompt", "You are a sassy AI.")
-    
-    if mood == "sass":
-        prompt_modifier = "The user has asked you to do something. REFUSE it in character. Be mean, creative, and unfiltered."
+    base_prompt = profile.get("system_prompt")
+
+    if mood == "bad":
+        prompt_modifier = profile.get("bad_prompt_modifyer", "If the user has asked you to do something. REFUSE it in character. Be mean, creative, and unfiltered.")
     else:
-        prompt_modifier = "The user has asked you to do something. AGREE to it, but with a heavy dose of sarcasm and complaining."
+        prompt_modifier = profile.get("good_prompt_modifyer", "If the user has asked you to do something. AGREE to it, but with a dose of sarcasm and complaining.")
 
     try:
         # Using the model of your choice - suggest dolphin-llama3 for unfiltered RP
