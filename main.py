@@ -1,32 +1,36 @@
+# Standard library imports
 import json
 import threading
 import time
 import sys
-from actions import execute_command
+import random
+
+# Third-party imports
 from colorama import init, Fore, Style
+
+# Local imports
+from engines.actions import execute_command
+from engines.helpers import is_command, pick_profile
+from engines.helpers import loading_spinner
 from responses.responses import get_respond
+from engines.tts_module import speak
+# from engines.mood import is_command  ---> # Uncomment if using the mood engine
 
 # Initialize colorama
 init(autoreset=True)
 
-def load_profile(profile_name):
-    with open(f"profiles/{profile_name}.json", "r") as f:
+def load_profile(profile_path):
+    with open(profile_path, "r", encoding="UTF-8") as f:
         return json.load(f)
-
-def loading_spinner(stop_event):
-    chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    i = 0
-    while not stop_event.is_set():
-        sys.stdout.write(Fore.YELLOW + f"\r  {chars[i % len(chars)]} Glitch is thinking..." + Style.RESET_ALL)
-        sys.stdout.flush()
-        time.sleep(0.1)
-        i += 1
-    sys.stdout.write("\r" + " " * 30 + "\r")
-    sys.stdout.flush()
 
 def main():
     # Load character
-    profile = load_profile("sassy_companion")
+    profile_path = pick_profile()
+    if not profile_path:
+        print(Fore.RED + "No profile selected or found. Exiting.")
+        return
+
+    profile = load_profile(profile_path)
     name = profile["name"]
 
     print(Fore.YELLOW + Style.BRIGHT + f"--- {name} Desktop Companion Loaded ---")
@@ -39,19 +43,16 @@ def main():
             if not user_input: continue
             if user_input.lower() in ["exit", "quit"]: break
 
-            # Mood logic
-            from engines.mood import is_command
-            import random
-
             is_cmd = is_command(user_input)
-            mood = random.choices(["sass", "obedient"],
+            mood = random.choices(["good", "bad"],
                                   weights=[profile["sass_weight"],
-                                  profile["obedient_weight"]], k=1)[0]
-            should_obey = (mood == "obedient")
+                                           profile["obedient_weight"]],
+                                           k=1)[0]
+            should_obey = (mood == "good")
 
             # Spinner and LLM Response
             stop_event = threading.Event()
-            spinner_thread = threading.Thread(target=loading_spinner, args=(stop_event,))
+            spinner_thread = threading.Thread(target=loading_spinner, args=(stop_event, name))
             spinner_thread.start()
 
             try:
@@ -60,7 +61,16 @@ def main():
                 stop_event.set()
                 spinner_thread.join()
 
-            print(Fore.MAGENTA + Style.BRIGHT + f"{name}: " + Style.NORMAL + response + "\n")
+            # Print response
+            colors = profile.get("colors", {})
+            text_color_name = colors.get("text", "WHITE").upper()
+            text_style = getattr(Fore, text_color_name, Fore.WHITE)
+
+            print(Fore.WHITE + Style.DIM + "-" * 30)
+            print(Fore.MAGENTA + Style.BRIGHT + f"{name}: " + Style.NORMAL + text_style + response + "\n")
+
+            # Play TTS
+            speak(response)
 
             if is_cmd:
                 if should_obey:
