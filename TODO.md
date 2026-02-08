@@ -14,11 +14,13 @@
 - [x] Implement **RP Screening** (Stripping `*narration*` from TTS)
 - [x] Synchronize LLM responses with Mood Engine decisions (Hard-enforced obedience/refusal)
 
-## Phase 3: Persistent Memory & Relationships (Next)
-- [ ] **Persistent Chat History**: Save/Load conversations to JSON per profile
-- [ ] **Context Window Management**: Feed last 10-15 messages back to the AI for short-term memory
-- [ ] **Dynamic Mood Score**: Replace random rolls with a -100 to +100 relationship meter
-- [ ] **Sentiment Analysis**: Update mood based on user being "Nice" or "Mean"
+## Phase 3: Persistent Memory & Relationships
+- [x] **Persistent Chat History**: Save/Load conversations to JSON per profile
+- [x] **Context Window Management**: Feed last 10 messages back to the AI for short-term memory
+- [x] **Global Settings System**: Integrate `settings.json` as the single source of truth
+- [x] **Dynamic Mood Score**: Replace random rolls with a -100 to +100 relationship meter
+- [x] **Sentiment Analysis**: Update mood based on user being "Nice" or "Mean"
+- [ ] **Connect Mood to Obedience**: Update `main.py` to use relationship score for decisions
 - [ ] **Mood Decay**: Implement logic for the AI to "calm down" over time
 
 ## Phase 4: Features & Polishing

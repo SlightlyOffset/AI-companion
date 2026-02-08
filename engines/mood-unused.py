@@ -1,5 +1,5 @@
 import random
-from responses.responses import get_respond
+from engines.responses import get_respond
 from engines.actions import APPS
 
 # Base weights for mood decision

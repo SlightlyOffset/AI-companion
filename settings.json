@@ -1,0 +1,8 @@
+{
+    "tts_enabled": false,
+    "default_tts_voice": "en-GB-SoniaNeural",
+    "tts_rate": 170,
+    "default_llm_model": "llama3",
+    "history_limit": 10,
+    "debug_mode": false
+}
