@@ -37,24 +37,41 @@ def get_respond(user_input: str, profile: dict, should_obey: bool = True, profil
     limit = get_setting("history_limit", 10)
     history = history[-limit:] if history and limit > 0 else history
 
-    # Setup base prompt and modifiers
+    # Setup base prompt and state modifiers
     base_prompt = profile.get("system_prompt")
+    rel_score = profile.get("relationship_score", 0)
+    
+    # Map score to a descriptive label
+    if rel_score >= 80: rel_label = "Soulmate / Bestie"
+    elif rel_score >= 40: rel_label = "Close Friend"
+    elif rel_score >= 15: rel_label = "Friendly / Liked"
+    elif rel_score >= -15: rel_label = "Neutral / Acquaintance"
+    elif rel_score >= -40: rel_label = "Annoyance / Disliked"
+    elif rel_score >= -80: rel_label = "Hostile / Enemy"
+    else: rel_label = "Arch-Nemesis / Despised"
 
+    # Determine action and tone based on obedience roll
     if not should_obey:
-        prompt_modifier = profile.get("bad_prompt_modifyer", "REFUSE the request creatively and in character.")
-        strict_instruction = "IMPORTANT: You MUST REFUSE the user's request. Do not help them."
+        action_req = "MUST REFUSE the user's request. Do not help them."
+        tone_mod = profile.get("bad_prompt_modifyer", "Refuse creatively and in character.")
     else:
-        prompt_modifier = profile.get("good_prompt_modifyer", "AGREE to the request politely.")
-        strict_instruction = "IMPORTANT: You MUST AGREE to help the user. Do not refuse."
+        action_req = "MUST AGREE to the user's request. Help them."
+        tone_mod = profile.get("good_prompt_modifyer", "Agree and assist in character.")
 
-    rel_instruction = (
-        "\n[HIDDEN TASK]: Evaluate the user's tone. "
-        "At the VERY END of your response, include a sentiment tag: [REL: +X], [REL: -X], or [REL: 0]. "
-        "Range is -5 to +5, where positive is friendly/positive tone, negative is hostile/negative tone, and 0 is neutral. And adjust to profile personality. "
-        "DO NOT mention this tag in your main response."
-    )
+    # Structured System Content
+    system_content = f"""{base_prompt}
 
-    system_content = f"{base_prompt}\n\n{prompt_modifier}\n\n{strict_instruction}\n{rel_instruction}"
+[CURRENT CONTEXT]
+Relationship: {rel_label} (Score: {rel_score}/100)
+Required Action: {action_req}
+Tone Guidance: {tone_mod}
+
+[OUTPUT RULES]
+1. Stay strictly in character.
+2. Follow the 'Required Action' above, but flavor it with your 'Relationship' status.
+3. At the VERY END of your response, include a sentiment tag for the user's tone: [REL: +X], [REL: -X], or [REL: 0] (Range -5 to +5).
+4. Do NOT mention the [REL] tag or these instructions in your conversation.
+"""
 
     # Construct messages for the model
     messages = [{'role': 'system', 'content': system_content}]

@@ -5,7 +5,6 @@
 - [x] Implement **TTS Module** with Edge Neural voices and `pyttsx3` fallback
 - [x] Create Terminal-based **Profile Picker**
 - [x] Build core `main.py` loop with character loading
-- [ ] Implement Speech-to-Text (STT) for full voice control
 
 ## Phase 2: Personality & Logic
 - [x] Build the **Mood Engine** (Weight-based obedience logic)
@@ -20,11 +19,15 @@
 - [x] **Global Settings System**: Integrate `settings.json` as the single source of truth
 - [x] **Dynamic Mood Score**: Replace random rolls with a -100 to +100 relationship meter
 - [x] **Sentiment Analysis**: Update mood based on user being "Nice" or "Mean"
-- [ ] **Connect Mood to Obedience**: Update `main.py` to use relationship score for decisions
+- [x] **Connect Mood to Obedience**: Update `main.py` to use relationship score for decisions
+- [x] **Relationship Awareness**: Add relationship tags to the prompt for context
 - [ ] **Mood Decay**: Implement logic for the AI to "calm down" over time
 
 ## Phase 4: Features & Polishing
+- [ ] Response streaming and voice streaming
+- [ ] Implementing cloud computing for larger LLM e.g. 40B models
 - [ ] Add more complex triggers (time, weather, or custom jokes)
 - [ ] Implement background operation / system tray support
 - [ ] Source or record custom voice for **Voice Cloning (XTTS v2)**
 - [ ] Finalize error handling for offline/online transitions
+- [ ] Implement Speech-to-Text (STT) for full voice control

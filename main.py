@@ -48,6 +48,9 @@ def main():
 
     while True:
         try:
+            # Refresh profile each loop to get updates
+            profile = load_profile(profile_path)
+
             user_input = input(Fore.CYAN + Style.BRIGHT + "You: " + Style.RESET_ALL).strip()
             if not user_input: continue
             if user_input.startswith("//"):
@@ -55,14 +58,24 @@ def main():
 
             is_cmd = is_command(user_input)
 
-            # Weight lookup
+            # --- Relationship-Based Decision Logic ---
+            relationship_score = profile.get("relationship_score", 0)
+            rel_mod = relationship_score / 10.0  # Scale -100 to +100 into -10 to +10
+
             good_w = profile.get("good_weight", 5)
             bad_w = profile.get("bad_weight", 5)
 
+            # Adjust weights: High relationship increases good_w and decreases bad_w
+            # Use 0.1 as min weight to keep the roll valid but highly biased
+            adj_good_w = max(0.1, good_w + rel_mod)
+            adj_bad_w = max(0.1, bad_w - rel_mod)
+
+            # Final decision roll based on adjusted personality
             mood = random.choices(["good", "bad"],
-                                  weights=[good_w, bad_w],
+                                  weights=[adj_good_w, adj_bad_w],
                                   k=1)[0]
             should_obey = (mood == "good")
+            # -----------------------------------------
 
             # Instant Action: Execute if obedient before AI starts thinking
             ai_input = user_input
