@@ -167,7 +167,7 @@ def run_app():
                     if char == '*':
                         is_currently_narrating = not is_currently_narrating
                         sys.stdout.write(narration_style if is_currently_narrating else char_style)
-                        sys.stdout.write(char)
+                        # sys.stdout.write(char) # Optionally print the asterisk if you want a visual toggle in the terminal
                     else:
                         sys.stdout.write((narration_style if is_currently_narrating else char_style) + char)
                 sys.stdout.flush()

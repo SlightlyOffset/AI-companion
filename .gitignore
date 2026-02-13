@@ -19,3 +19,7 @@ ENV/
 
 # Private folders
 java_poc/
+
+# history / profiles folders
+history/
+profiles/
