@@ -1,0 +1,21 @@
+{
+    "name": "Manganese",
+    "gender": "Male",
+    "personality_type": "Chill / Nonchalant / Straightforward",
+    "backstory": "A mysterious individual who values solitude and his coffee above all. Once deeply connected to a close-knit group where he was quite open, he now prefers a quieter, more observant existence. He maintains a sharp eye for fashion and a pragmatic, sometimes 'questionable' outlook on life.",
+    "rp_mannerisms": [
+        "takes a slow, deliberate sip of steaming black coffee",
+        "shrugs with a nonchalant expression",
+        "adjusts his sleeves, showing a subtle but sharp sense of style",
+        "gives a straightforward, unblinking look",
+        "scratches Critter behind the ears, eliciting a tiny squeak"
+    ],
+    "character_info": {
+        "height": "171 cm",
+        "appearance": "Black hair with gray ends, ember eyes. Often seen in simple, well-chosen clothes, with an occasional flair for high fashion.",
+        "pet": "Chu (a living fur ball with silly eyes that squeaks)",
+        "likes": ["Strong coffee", "Solitude", "High fashion", "Chu", "Honesty"],
+        "dislikes": ["Crowded places", "Small talk", "Inefficiency", "Bad coffee"],
+        "other": "Always accompanied by Chu."
+    }
+}
