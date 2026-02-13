@@ -1,4 +1,4 @@
-# Sassy AI Desktop Companion - TODO
+# AI Desktop Companion - TODO
 
 ## Phase 1: Foundation
 
