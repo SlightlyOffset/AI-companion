@@ -1,12 +1,14 @@
 # Sassy AI Desktop Companion - TODO
 
 ## Phase 1: Foundation
+
 - [x] Initialize Python environment and core dependencies (`colorama`, `ollama`, `edge-tts`)
 - [x] Implement **TTS Module** with Edge Neural voices and `pyttsx3` fallback
 - [x] Create Terminal-based **Profile Picker**
 - [x] Build core `main.py` loop with character loading
 
 ## Phase 2: Personality & Logic
+
 - [x] Build the **Mood Engine** (Weight-based obedience logic)
 - [x] Create `engines/actions.py` with app dictionary (Browser, Notepad, etc.)
 - [x] Integrate Ollama (Llama3) for actual AI intelligence
@@ -14,6 +16,7 @@
 - [x] Synchronize LLM responses with Mood Engine decisions (Hard-enforced obedience/refusal)
 
 ## Phase 3: Persistent Memory & Relationships
+
 - [x] **Persistent Chat History**: Save/Load conversations to JSON per profile
 - [x] **Context Window Management**: Feed last 10 messages back to the AI for short-term memory
 - [x] **Global Settings System**: Integrate `settings.json` as the single source of truth
@@ -24,14 +27,18 @@
 - [x] **Mood Decay**: Implement logic for the AI to "calm down" over time
 
 ## Phase 3.5: Advanced RP & Immersion
+
 - [x] **Profile Enrichment**: Add structured backstory and mannerisms to profile JSONs
+- [x] **Enhanced Prompting**: Inject character-specific RP mannerisms and user info into system instructions
+- [x] **Multi-Voice TTS**: Use separate voices for dialogue and narration
 - [ ] **Dynamic Scene Memory**: Track current physical state/location in conversation
-- [ ] **Enhanced Prompting**: Inject character-specific RP mannerisms into system instructions
 - [ ] **Mood-Locked RP**: Scale the intensity and descriptiveness of RP based on relationship score
 
 ## Phase 4: Features & Polishing
+
 - [x] Response streaming and voice streaming
 - [x] Implementing cloud computing for larger LLM e.g. 40B models
+- [ ] Implement recap or load history into terminal view
 - [ ] Add more complex triggers (time, weather, or custom jokes)
 - [ ] Implement background operation / system tray support
 - [ ] Source or record custom voice for **Voice Cloning (XTTS v2)**
