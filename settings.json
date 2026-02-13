@@ -1,11 +1,14 @@
 {
-    "tts_enabled": true,
+    "remote_llm_url": null,
     "execute_command": false,
+    "tts_enabled": true,
     "default_tts_voice": "en-GB-SoniaNeural",
+    "speak_narration": true,
+    "narration_tts_voice": "en-US-AndrewNeural",
     "tts_rate": 170,
     "default_llm_model": "fluffy/l3-8b-stheno-v3.2",
     "history_limit": 10,
     "current_user_profile": "Manganese.json",
     "debug_mode": false,
-    "remote_llm_url": null
+    "clear_at_start": false
 }

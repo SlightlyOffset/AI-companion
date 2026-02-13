@@ -1,3 +1,8 @@
+"""
+Main entry point for the Sassy AI Desktop Companion.
+Handles the interaction loop, multi-threaded TTS pipeline, and UI rendering.
+"""
+
 # Standard library imports
 import json
 import threading
@@ -6,6 +11,7 @@ import queue
 import re
 import os
 import time
+import sys
 
 # Third-party imports
 from colorama import init, Fore, Style
@@ -17,76 +23,71 @@ from engines.utilities import pick_profile, pick_user_profile
 from engines.app_commands import app_commands, RestartRequested
 from engines.responses import get_respond_stream, apply_mood_decay
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
-from engines.config import update_setting
+from engines.config import update_setting, get_setting
 
 # Initialize colorama
-init(autoreset=True)
+init(autoreset=False)
 
-# Clearing the console
-os.system('cls' if os.name == 'nt' else 'clear')
+# Clearing the console at startup
+if get_setting("clear_at_start", True):
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-# Config path
+# Global configuration path
 CONFIG_PATH = "settings.json"
 
 def load_profile(profile_path):
+    """Loads a character or user profile from a JSON file."""
     with open(profile_path, "r", encoding="UTF-8") as f:
         return json.load(f)
 
-# TTS Queues for pipelined streaming
+# TTS Queues
 tts_text_queue = queue.Queue()
 audio_file_queue = queue.Queue()
 
-def tts_generation_worker(tts_pref):
-    """Worker thread to generate MP3s from text segments."""
+def tts_generation_worker():
+    """Worker thread that converts text to MP3. Expects (text, voice) tuples."""
     while True:
-        text = tts_text_queue.get()
-        if text is None:
+        data = tts_text_queue.get()
+        if data is None:
             audio_file_queue.put(None)
             break
 
+        text, voice = data
         temp_dir = os.environ.get("TEMP", "/tmp")
         temp_filename = os.path.join(temp_dir, f"tts_{time.time()}_{random.randint(1000,9999)}.mp3")
 
-        if generate_audio(text, temp_filename, voice=tts_pref):
+        if generate_audio(text, temp_filename, voice=voice):
             audio_file_queue.put(temp_filename)
         tts_text_queue.task_done()
 
 def tts_playback_worker():
-    """Worker thread to play generated MP3s in order."""
+    """Worker thread to play audio files in order."""
     while True:
         filename = audio_file_queue.get()
         if filename is None:
             break
-
         play_audio(filename)
         audio_file_queue.task_done()
 
 def get_smart_split_points(text):
     """
-    Finds punctuation points to split text, but ONLY if they are 
-    not inside asterisks (*...*) or part of an ellipsis (...).
+    Finds split points for TTS.
+    Splits on asterisks (to switch voices) and punctuation (to keep segments short).
     """
     points = []
     in_asterisks = False
-    
     for i in range(len(text)):
         char = text[i]
-        
-        # Toggle narration state
         if char == '*':
             in_asterisks = not in_asterisks
+            points.append(i + 1)
             continue
-            
-        # If we aren't in an action block, look for punctuation
         if not in_asterisks:
             if char in ".!?\n":
-                # Check for ellipsis (don't split if the next char is also a dot)
                 if char == '.' and i + 1 < len(text) and text[i+1] == '.':
                     continue
-                # Check if we are in the middle of an ellipsis (previous char was a dot)
                 if char == '.' and i > 0 and text[i-1] == '.':
                     continue
-                    
                 points.append(i + 1)
     return points
 
@@ -106,8 +107,8 @@ def run_app():
     else:
         user_name = "User"
 
-    print(Fore.YELLOW + Style.BRIGHT + f"--- {ch_name} Desktop Companion Loaded ---")
-    print(Fore.YELLOW + "Type '//help' for a list of commands.\n")
+    print(Fore.YELLOW + Style.BRIGHT + f"--- {ch_name} Desktop Companion Loaded ---" + Style.RESET_ALL)
+    print(Fore.YELLOW + "Type '//help' for a list of commands.\n" + Style.RESET_ALL)
 
     while True:
         try:
@@ -115,16 +116,15 @@ def run_app():
                 config = json.load(f)
 
             profile_data = load_profile(character_profile_path)
-            tts_pref = profile_data.get("preferred_tts_voice", None)
+            char_voice = profile_data.get("preferred_tts_voice", None)
+            narrator_voice = get_setting("narration_tts_voice", "en-US-AndrewNeural")
 
             apply_mood_decay(character_profile_path, ch_name)
 
-            gen_thread = threading.Thread(target=tts_generation_worker, args=(tts_pref,))
+            gen_thread = threading.Thread(target=tts_generation_worker)
             play_thread = threading.Thread(target=tts_playback_worker)
-            gen_thread.daemon = True
-            play_thread.daemon = True
-            gen_thread.start()
-            play_thread.start()
+            gen_thread.daemon = True; play_thread.daemon = True
+            gen_thread.start(); play_thread.start()
 
             user_input = input(Fore.CYAN + Style.BRIGHT + f"{user_name}: " + Style.RESET_ALL).strip()
             if not user_input:
@@ -139,71 +139,87 @@ def run_app():
                     continue
 
             should_obey = None
-            system_extra_info = None
-            if is_command(user_input):
-                if config.get("execute_command", False):
-                    rel_score = profile_data.get("relationship_score", 0)
-                    weights = [max(0.1, profile_data.get("good_weight", 5) + (rel_score/10)), 
-                               max(0.1, profile_data.get("bad_weight", 5) - (rel_score/10))]
-                    should_obey = (random.choices(["good", "bad"], weights=weights, k=1)[0] == "good")
-                    if should_obey:
-                        _, message = execute_command(user_input)
-                        print(Fore.GREEN + f"[SYSTEM] {message}")
-                        system_extra_info = "Task complete. Keep response brief."
-                else:
-                    print(Fore.YELLOW + "[SYSTEM] Command execution disabled.")
-                    continue
+            if is_command(user_input) and config.get("execute_command", False):
+                rel_score = profile_data.get("relationship_score", 0)
+                weights = [max(0.1, profile_data.get("good_weight", 5) + (rel_score/10)),
+                           max(0.1, profile_data.get("bad_weight", 5) - (rel_score/10))]
+                should_obey = (random.choices(["good", "bad"], weights=weights, k=1)[0] == "good")
+                if should_obey:
+                    _, message = execute_command(user_input)
+                    print(Fore.GREEN + f"[SYSTEM] {message}" + Style.RESET_ALL)
 
             colors = profile_data.get("colors", {})
-            text_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE)
+            char_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE) + \
+                         getattr(Style, colors.get("label", "NORMAL").upper(), Style.NORMAL)
+            narration_style = Fore.LIGHTBLACK_EX + Style.BRIGHT + "\033[3m"
 
-            print(Fore.WHITE + Style.DIM + "-" * 30)
-            print(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.NORMAL + text_style, end="", flush=True)
+            print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
+            sys.stdout.write(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.RESET_ALL)
+            sys.stdout.flush()
 
             full_response = ""
             current_buffer = ""
-            in_narration = False
-            narration_style = Fore.BLACK + Style.BRIGHT
+            is_currently_narrating = False # Tracks state for terminal printing
+            tts_in_narration = False      # Tracks state for voice selection
 
-            for chunk in get_respond_stream(user_input, profile_data, should_obey=should_obey, profile_path=character_profile_path, system_extra_info=system_extra_info):
+            for chunk in get_respond_stream(user_input, profile_data, should_obey=should_obey, profile_path=character_profile_path):
                 for char in chunk:
                     if char == '*':
-                        in_narration = not in_narration
-                        print(narration_style + char if in_narration else char + text_style, end="", flush=True)
+                        is_currently_narrating = not is_currently_narrating
+                        sys.stdout.write(narration_style if is_currently_narrating else char_style)
+                        sys.stdout.write(char)
                     else:
-                        print(char, end="", flush=True)
+                        sys.stdout.write((narration_style if is_currently_narrating else char_style) + char)
+                sys.stdout.flush()
 
                 full_response += chunk
                 current_buffer += chunk
 
-                # Check for safe split points
+                # Check for split points
                 split_points = get_smart_split_points(current_buffer)
                 if split_points:
                     last_point = 0
                     for point in split_points:
-                        segment = current_buffer[last_point:point].strip()
-                        if segment:
-                            cleaned = clean_text_for_tts(segment)
-                            if cleaned:
-                                tts_text_queue.put(cleaned)
+                        segment = current_buffer[last_point:point]
+
+                        # Detect if this segment contains a toggle
+                        contains_asterisk = '*' in segment
+
+                        # Important: Voice selection happens based on state BEFORE the toggle,
+                        # UNLESS the segment IS the narration itself.
+                        # If a segment is "*", it toggles the state for the NEXT segment.
+                        voice = narrator_voice if tts_in_narration or contains_asterisk else char_voice
+
+                        # Update the state for the next segment if we hit an asterisk
+                        if contains_asterisk:
+                            tts_in_narration = not tts_in_narration
+
+                        cleaned = clean_text_for_tts(segment, speak_narration=True)
+                        if cleaned:
+                            tts_text_queue.put((cleaned, voice))
                         last_point = point
                     current_buffer = current_buffer[last_point:]
 
-            # Final Cleanup
             if current_buffer.strip():
                 clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_buffer).strip()
-                cleaned = clean_text_for_tts(clean_leftover)
+                voice = narrator_voice if tts_in_narration or '*' in clean_leftover else char_voice
+                cleaned = clean_text_for_tts(clean_leftover, speak_narration=True)
                 if cleaned:
-                    tts_text_queue.put(cleaned)
+                    tts_text_queue.put((cleaned, voice))
 
-            print("\n" + Fore.WHITE + Style.DIM + "-" * 30)
+            sys.stdout.write(Style.RESET_ALL + "\n")
+            print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
+            sys.stdout.flush()
+
             tts_text_queue.put(None)
             gen_thread.join(); play_thread.join()
 
         except (KeyboardInterrupt, RestartRequested):
+            sys.stdout.write(Style.RESET_ALL); sys.stdout.flush()
             raise
         except Exception as e:
-            print(Fore.RED + f"\n[ERROR] {e}")
+            sys.stdout.write(Style.RESET_ALL)
+            print(Fore.RED + f"\n[ERROR] {e}" + Style.RESET_ALL)
 
 def main():
     while True:
@@ -213,10 +229,10 @@ def main():
             os.system('cls' if os.name == 'nt' else 'clear')
             continue
         except KeyboardInterrupt:
-            print(Fore.YELLOW + "\n[SYSTEM] Shutting down...")
+            print(Style.RESET_ALL + Fore.YELLOW + "\n[SYSTEM] Shutting down..." + Style.RESET_ALL)
             break
         except Exception as e:
-            print(Fore.RED + f"\n[CRITICAL ERROR] {e}")
+            print(Style.RESET_ALL + Fore.RED + f"\n[CRITICAL ERROR] {e}" + Style.RESET_ALL)
             break
 
 if __name__ == "__main__":
