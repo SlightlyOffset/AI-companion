@@ -3,8 +3,9 @@
     "execute_command": false,
     "default_tts_voice": "en-GB-SoniaNeural",
     "tts_rate": 170,
-    "default_llm_model": "llama3",
+    "default_llm_model": "fluffy/l3-8b-stheno-v3.2",
     "history_limit": 10,
+    "current_user_profile": "Manganese.json",
     "debug_mode": false,
     "remote_llm_url": null
 }

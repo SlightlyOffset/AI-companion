@@ -23,9 +23,15 @@
 - [x] **Relationship Awareness**: Add relationship tags to the prompt for context
 - [x] **Mood Decay**: Implement logic for the AI to "calm down" over time
 
+## Phase 3.5: Advanced RP & Immersion
+- [x] **Profile Enrichment**: Add structured backstory and mannerisms to profile JSONs
+- [ ] **Dynamic Scene Memory**: Track current physical state/location in conversation
+- [ ] **Enhanced Prompting**: Inject character-specific RP mannerisms into system instructions
+- [ ] **Mood-Locked RP**: Scale the intensity and descriptiveness of RP based on relationship score
+
 ## Phase 4: Features & Polishing
 - [x] Response streaming and voice streaming
-- [ ] Implementing cloud computing for larger LLM e.g. 40B models
+- [x] Implementing cloud computing for larger LLM e.g. 40B models
 - [ ] Add more complex triggers (time, weather, or custom jokes)
 - [ ] Implement background operation / system tray support
 - [ ] Source or record custom voice for **Voice Cloning (XTTS v2)**

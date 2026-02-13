@@ -25,16 +25,25 @@ _offline_engine = None
 
 def clean_text_for_tts(text: str) -> str:
     """
-    Removes text between asterisks (usually actions/narration in RP)
-    so they aren't spoken out loud.
+    Removes text used for actions/narration in RP so they aren't spoken out loud.
+    Handles *actions*, **bold actions**, (parenthetical actions), and [brackets].
     """
-    # Remove text inside *asterisks* (including multi-line)
-    cleaned = re.sub(r'\*.*?\*', '', text, flags=re.DOTALL)
+    # 1. Remove text inside triple or double asterisks first (longest matches)
+    cleaned = re.sub(r'\*{2,3}.*?\*{2,3}', '', text, flags=re.DOTALL)
+    
+    # 2. Remove text inside single asterisks
+    cleaned = re.sub(r'\*.*?\*', '', cleaned, flags=re.DOTALL)
+    
+    # 3. Remove text inside parentheses (often used for OOC or meta-narration)
+    cleaned = re.sub(r'\(.*?\)', '', cleaned, flags=re.DOTALL)
 
-    # Remove fragments like " *" or "* " that might be left if a sentence was split mid-asterisk
-    cleaned = cleaned.replace('*', '')
+    # 4. Remove text inside brackets
+    cleaned = re.sub(r'\[.*?\]', '', cleaned, flags=re.DOTALL)
 
-    # Remove double spaces and strip
+    # 5. Clean up any leftover stray asterisks or brackets
+    cleaned = cleaned.replace('*', '').replace('[', '').replace(']', '')
+
+    # 6. Remove double spaces and strip
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
     # If the segment is just punctuation now, it should be empty

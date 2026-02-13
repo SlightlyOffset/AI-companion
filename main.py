@@ -13,15 +13,19 @@ from colorama import init, Fore, Style
 # Local imports
 from engines.actions import execute_command
 from engines.utilities import is_command
-from engines.utilities import pick_profile
-from engines.app_commands import app_commands
+from engines.utilities import pick_profile, pick_user_profile
+from engines.app_commands import app_commands, RestartRequested
 from engines.responses import get_respond_stream, apply_mood_decay
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
+from engines.config import update_setting
 
 # Initialize colorama
 init(autoreset=True)
 
-# Congig path
+# Clearing the console
+os.system('cls' if os.name == 'nt' else 'clear')
+
+# Config path
 CONFIG_PATH = "settings.json"
 
 def load_profile(profile_path):
@@ -58,37 +62,43 @@ def tts_playback_worker():
         play_audio(filename)
         audio_file_queue.task_done()
 
-def main():
+def run_app():
     # Load character
-    profile_path = pick_profile()
-    if not profile_path:
+    character_profile_path = pick_profile()
+    if not character_profile_path:
         print(Fore.RED + "No profile selected or found. Exiting.")
         return
 
-    profile = load_profile(profile_path)
-    name = profile["name"]
+    character_profile = load_profile(character_profile_path)
+    ch_name = character_profile["name"]
 
-    print(Fore.YELLOW + Style.BRIGHT + f"--- {name} Desktop Companion Loaded ---")
+    # Load user profile
+    user_profile_path = pick_user_profile()
+    if user_profile_path:
+        user_profile = load_profile(user_profile_path)
+        user_name = user_profile.get("name", "User")
+        user_filename = os.path.basename(user_profile_path)
+        update_setting("current_user_profile", user_filename)
+    else:
+        user_name = "User"
+
+    print(Fore.YELLOW + Style.BRIGHT + f"--- {ch_name} Desktop Companion Loaded ---")
     print(Fore.YELLOW + "Type '//help' for a list of commands.\n")
     print(Fore.YELLOW + Style.DIM + "[ NOTICE ]: This is an early build. Expect some quirks and crashes. Feedback is appreciated!")
     print(Fore.YELLOW + Style.DIM + "[ NOTICE ]: Take everything the AI says with a grain of salt! It may produce incorrect or nonsensical responses.\n")
 
     while True:
         try:
-            # Load config
             with open(CONFIG_PATH, "r", encoding="UTF-8") as f:
                 config = json.load(f)
 
-            # Refresh profile each loop to get updates
-            profile = load_profile(profile_path)
-            tts_pref = profile.get("preferred_tts_voice", None)
+            profile_data = load_profile(character_profile_path)
+            tts_pref = profile_data.get("preferred_tts_voice", None)
 
-            # Check and apply mood decay dynamically
-            decayed_points, new_score = apply_mood_decay(profile_path, name) or (0, 0)
+            decayed_points, new_score = apply_mood_decay(character_profile_path, ch_name) or (0, 0)
             if decayed_points > 0:
-                print(Fore.YELLOW + Style.DIM + f"  (Time has passed... {name}'s feelings have shifted. New Score: {new_score})")
+                print(Fore.YELLOW + Style.DIM + f"  (Time has passed... {ch_name}'s feelings have shifted. New Score: {new_score})")
 
-            # Start TTS pipeline workers
             gen_thread = threading.Thread(target=tts_generation_worker, args=(tts_pref,))
             play_thread = threading.Thread(target=tts_playback_worker)
             gen_thread.daemon = True
@@ -96,7 +106,7 @@ def main():
             gen_thread.start()
             play_thread.start()
 
-            user_input = input(Fore.CYAN + Style.BRIGHT + "You: " + Style.RESET_ALL).strip()
+            user_input = input(Fore.CYAN + Style.BRIGHT + f"{user_name}: " + Style.RESET_ALL).strip()
             if not user_input:
                 tts_text_queue.put(None)
                 gen_thread.join()
@@ -116,21 +126,16 @@ def main():
                     play_thread.join()
                     continue
 
-            # Determine if the AI should obey based on relationship score
             should_obey = None
             system_extra_info = None
             if is_command(user_input):
                 if config.get("execute_command", False):
-                    # --- Relationship-Based Decision Logic ---
-                    relationship_score = profile.get("relationship_score", 0)
+                    relationship_score = profile_data.get("relationship_score", 0)
                     rel_mod = relationship_score / 10.0
-
-                    good_w = profile.get("good_weight", 5)
-                    bad_w = profile.get("bad_weight", 5)
-
+                    good_w = profile_data.get("good_weight", 5)
+                    bad_w = profile_data.get("bad_weight", 5)
                     adj_good_w = max(0.1, good_w + rel_mod)
                     adj_bad_w = max(0.1, bad_w - rel_mod)
-
                     mood = random.choices(["good", "bad"], weights=[adj_good_w, adj_bad_w], k=1)[0]
                     should_obey = (mood == "good")
 
@@ -142,64 +147,79 @@ def main():
                     print(Fore.YELLOW + "[SYSTEM] Command execution is disabled in settings.")
                     continue
 
-            # Colors for AI response
-            colors = profile.get("colors", {})
+            colors = profile_data.get("colors", {})
             text_color_name = colors.get("text", "WHITE").upper()
             text_style = getattr(Fore, text_color_name, Fore.WHITE)
 
             print(Fore.WHITE + Style.DIM + "-" * 30)
-            print(Fore.MAGENTA + Style.BRIGHT + f"{name}: " + Style.NORMAL + text_style, end="", flush=True)
+            print(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.NORMAL + text_style, end="", flush=True)
 
-            # Streaming LLM Response
             full_response = ""
             current_sentence = ""
+            in_narration = False
+            narration_style = Fore.BLACK + Style.BRIGHT
 
-            for chunk in get_respond_stream(user_input, profile, should_obey=should_obey, profile_path=profile_path, system_extra_info=system_extra_info):
-                print(text_style + chunk, end="", flush=True)
+            for chunk in get_respond_stream(user_input, profile_data, should_obey=should_obey, profile_path=character_profile_path, system_extra_info=system_extra_info):
+                for char in chunk:
+                    if char == '*':
+                        in_narration = not in_narration
+                        print(narration_style + char if in_narration else char + text_style, end="", flush=True)
+                    else:
+                        print(char, end="", flush=True)
+
                 full_response += chunk
                 current_sentence += chunk
 
-                # Check for sentence completion or buffer length
-                if any(punct in chunk for punct in ".!?\n") or len(current_sentence) > 60:
+                # IMPORTANT: Only split for TTS if all narration blocks are closed (even number of asterisks)
+                # and we hit a punctuation/newline OR the buffer is getting very long.
+                num_asterisks = current_sentence.count('*')
+                is_balanced = (num_asterisks % 2 == 0)
+
+                if (any(punct in chunk for punct in ".!?\n") or len(current_sentence) > 100) and is_balanced:
                     parts = re.split(r'(?<=[.!?\n])', current_sentence)
-
-                    if len(parts) == 1 and len(current_sentence) > 160:
-                        last_space = current_sentence.rfind(' ')
-                        if last_space != -1 and last_space > 30:
-                            parts = [current_sentence[:last_space+1], current_sentence[last_space+1:]]
-                        else:
-                            parts = [current_sentence]
-
                     for i in range(len(parts) - 1):
                         segment = parts[i].strip()
                         if segment:
-                            # Pre-clean check to avoid speaking roleplay actions
-                            if clean_text_for_tts(segment):
-                                tts_text_queue.put(segment)
+                            cleaned = clean_text_for_tts(segment)
+                            if cleaned:
+                                tts_text_queue.put(cleaned)
                     current_sentence = parts[-1]
 
+            # Final leftover text
             if current_sentence.strip():
-                clean_sentence = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_sentence).strip()
-                if clean_sentence and clean_text_for_tts(clean_sentence):
-                    tts_text_queue.put(clean_sentence)
+                # Clean out potential metadata tags first
+                clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_sentence).strip()
+                cleaned = clean_text_for_tts(clean_leftover)
+                if cleaned:
+                    tts_text_queue.put(cleaned)
 
             print("\n")
-
             if is_command(user_input) and not should_obey:
-                print(Fore.RED + f"[SYSTEM] {name} refused to help.")
+                print(Fore.RED + f"[SYSTEM] {ch_name} refused to help.")
 
             print(Fore.WHITE + Style.DIM + "-" * 30)
-
-            # Stop the pipeline
             tts_text_queue.put(None)
             gen_thread.join()
             play_thread.join()
 
-        except KeyboardInterrupt:
-            break
+        except (KeyboardInterrupt, RestartRequested):
+            raise
         except Exception as e:
             print(Fore.RED + f"\n[ERROR] {e}")
 
+def main():
+    while True:
+        try:
+            run_app()
+        except RestartRequested:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            continue
+        except KeyboardInterrupt:
+            print(Fore.YELLOW + "\n[SYSTEM] Shutting down...")
+            break
+        except Exception as e:
+            print(Fore.RED + f"\n[CRITICAL ERROR] {e}")
+            break
 
 if __name__ == "__main__":
     main()

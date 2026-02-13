@@ -64,6 +64,43 @@ def pick_profile() -> str:
             print("\n")
             return None
 
+def pick_user_profile() -> str:
+    """Terminal-based user profile picker."""
+    user_profiles_dir = "user_profiles"
+    if not os.path.exists(user_profiles_dir):
+        print(Fore.RED + f"[ERROR] User profiles directory '{user_profiles_dir}' not found.")
+        return None
+
+    user_profiles = [f for f in os.listdir(user_profiles_dir) if f.endswith(".json")]
+
+    if not user_profiles:
+        print(Fore.RED + f"[ERROR] No .json user profiles found in '{user_profiles_dir}'.")
+        return None
+
+    print(Fore.YELLOW + Style.BRIGHT + "\n--- Select Your User Profile ---")
+    for i, p in enumerate(user_profiles, 1):
+        display_name = p.replace(".json", "").replace("_", " ").title()
+        print(Fore.CYAN + f"  [{i}] {display_name}")
+
+    while True:
+        try:
+            choice = input(Fore.YELLOW + "\nEnter user profile number: " + Style.RESET_ALL).strip()
+            if not choice:
+                continue
+
+            idx = int(choice) - 1
+            if 0 <= idx < len(user_profiles):
+                selected = os.path.join(user_profiles_dir, user_profiles[idx])
+                print(Fore.GREEN + f"Loading {user_profiles[idx]}...\n")
+                return selected
+            else:
+                print(Fore.RED + "Invalid selection. Please try again.")
+        except ValueError:
+            print(Fore.RED + "Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\n")
+            return None
+
 def pick_history() -> str:
     """Picks a history file for a given profile."""
     history_dir = "history"

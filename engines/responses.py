@@ -5,6 +5,7 @@ import requests
 from datetime import datetime
 from engines.memory import save_conversation, load_conversation, get_last_timestamp
 from engines.config import get_setting
+from engines.prompts import build_system_prompt
 
 def apply_mood_decay(profile_path: str, profile_name: str):
     """
@@ -80,7 +81,6 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     history = history[-limit:] if history and limit > 0 else history
 
     # Setup context
-    base_prompt = profile.get("system_prompt")
     rel_score = profile.get("relationship_score", 0)
 
     if rel_score >= 80: rel_label = "Soulmate / Bestie"
@@ -102,17 +102,14 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         action_req = "Respond normally."
         tone_mod = "Maintain a balanced tone."
 
-    system_content = f"""{base_prompt}
-
-[CONTEXT]
-Rel: {rel_label} ({rel_score}/100)
-Action: {action_req}
-Tone: {tone_mod}
-"""
-    if system_extra_info:
-        system_content += f"Note: {system_extra_info}\n"
-
-    system_content += "\n[RULES]\n1. Stay in character.\n2. End with sentiment tag: [REL: +X], [REL: -X], or [REL: 0] (-5 to +5).\n"
+    system_content = build_system_prompt(
+        profile, 
+        rel_score, 
+        rel_label, 
+        action_req, 
+        tone_mod, 
+        system_extra_info
+    )
 
     messages = [{'role': 'system', 'content': system_content}]
     messages.extend(history)
