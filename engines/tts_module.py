@@ -30,10 +30,10 @@ def clean_text_for_tts(text: str) -> str:
     """
     # 1. Remove text inside triple or double asterisks first (longest matches)
     cleaned = re.sub(r'\*{2,3}.*?\*{2,3}', '', text, flags=re.DOTALL)
-    
+
     # 2. Remove text inside single asterisks
     cleaned = re.sub(r'\*.*?\*', '', cleaned, flags=re.DOTALL)
-    
+
     # 3. Remove text inside parentheses (often used for OOC or meta-narration)
     cleaned = re.sub(r'\(.*?\)', '', cleaned, flags=re.DOTALL)
 
@@ -132,7 +132,7 @@ def generate_audio(text, filename, voice=None):
         asyncio.run(generate_edge_tts(cleaned_text, filename, voice=voice))
         return True
     except Exception as e:
-        print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
+        # print(Fore.RED + f"\n[TTS GEN ERROR] {e}") -- commented out to reduce noise
         return False
 
 def play_audio(filename):

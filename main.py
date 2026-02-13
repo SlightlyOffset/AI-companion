@@ -44,7 +44,6 @@ def tts_generation_worker(tts_pref):
             audio_file_queue.put(None)
             break
 
-        # Unique filename to avoid collisions
         temp_dir = os.environ.get("TEMP", "/tmp")
         temp_filename = os.path.join(temp_dir, f"tts_{time.time()}_{random.randint(1000,9999)}.mp3")
 
@@ -62,30 +61,53 @@ def tts_playback_worker():
         play_audio(filename)
         audio_file_queue.task_done()
 
+def get_smart_split_points(text):
+    """
+    Finds punctuation points to split text, but ONLY if they are 
+    not inside asterisks (*...*) or part of an ellipsis (...).
+    """
+    points = []
+    in_asterisks = False
+    
+    for i in range(len(text)):
+        char = text[i]
+        
+        # Toggle narration state
+        if char == '*':
+            in_asterisks = not in_asterisks
+            continue
+            
+        # If we aren't in an action block, look for punctuation
+        if not in_asterisks:
+            if char in ".!?\n":
+                # Check for ellipsis (don't split if the next char is also a dot)
+                if char == '.' and i + 1 < len(text) and text[i+1] == '.':
+                    continue
+                # Check if we are in the middle of an ellipsis (previous char was a dot)
+                if char == '.' and i > 0 and text[i-1] == '.':
+                    continue
+                    
+                points.append(i + 1)
+    return points
+
 def run_app():
-    # Load character
     character_profile_path = pick_profile()
     if not character_profile_path:
-        print(Fore.RED + "No profile selected or found. Exiting.")
         return
 
     character_profile = load_profile(character_profile_path)
     ch_name = character_profile["name"]
 
-    # Load user profile
     user_profile_path = pick_user_profile()
     if user_profile_path:
         user_profile = load_profile(user_profile_path)
         user_name = user_profile.get("name", "User")
-        user_filename = os.path.basename(user_profile_path)
-        update_setting("current_user_profile", user_filename)
+        update_setting("current_user_profile", os.path.basename(user_profile_path))
     else:
         user_name = "User"
 
     print(Fore.YELLOW + Style.BRIGHT + f"--- {ch_name} Desktop Companion Loaded ---")
     print(Fore.YELLOW + "Type '//help' for a list of commands.\n")
-    print(Fore.YELLOW + Style.DIM + "[ NOTICE ]: This is an early build. Expect some quirks and crashes. Feedback is appreciated!")
-    print(Fore.YELLOW + Style.DIM + "[ NOTICE ]: Take everything the AI says with a grain of salt! It may produce incorrect or nonsensical responses.\n")
 
     while True:
         try:
@@ -95,9 +117,7 @@ def run_app():
             profile_data = load_profile(character_profile_path)
             tts_pref = profile_data.get("preferred_tts_voice", None)
 
-            decayed_points, new_score = apply_mood_decay(character_profile_path, ch_name) or (0, 0)
-            if decayed_points > 0:
-                print(Fore.YELLOW + Style.DIM + f"  (Time has passed... {ch_name}'s feelings have shifted. New Score: {new_score})")
+            apply_mood_decay(character_profile_path, ch_name)
 
             gen_thread = threading.Thread(target=tts_generation_worker, args=(tts_pref,))
             play_thread = threading.Thread(target=tts_playback_worker)
@@ -109,53 +129,39 @@ def run_app():
             user_input = input(Fore.CYAN + Style.BRIGHT + f"{user_name}: " + Style.RESET_ALL).strip()
             if not user_input:
                 tts_text_queue.put(None)
-                gen_thread.join()
-                play_thread.join()
+                gen_thread.join(); play_thread.join()
                 continue
 
             if user_input.startswith("//"):
                 if app_commands(user_input):
                     tts_text_queue.put(None)
-                    gen_thread.join()
-                    play_thread.join()
-                    continue
-                else:
-                    print(Fore.RED + "[SYSTEM] Unknown command. Type '//help' for a list of commands.")
-                    tts_text_queue.put(None)
-                    gen_thread.join()
-                    play_thread.join()
+                    gen_thread.join(); play_thread.join()
                     continue
 
             should_obey = None
             system_extra_info = None
             if is_command(user_input):
                 if config.get("execute_command", False):
-                    relationship_score = profile_data.get("relationship_score", 0)
-                    rel_mod = relationship_score / 10.0
-                    good_w = profile_data.get("good_weight", 5)
-                    bad_w = profile_data.get("bad_weight", 5)
-                    adj_good_w = max(0.1, good_w + rel_mod)
-                    adj_bad_w = max(0.1, bad_w - rel_mod)
-                    mood = random.choices(["good", "bad"], weights=[adj_good_w, adj_bad_w], k=1)[0]
-                    should_obey = (mood == "good")
-
+                    rel_score = profile_data.get("relationship_score", 0)
+                    weights = [max(0.1, profile_data.get("good_weight", 5) + (rel_score/10)), 
+                               max(0.1, profile_data.get("bad_weight", 5) - (rel_score/10))]
+                    should_obey = (random.choices(["good", "bad"], weights=weights, k=1)[0] == "good")
                     if should_obey:
-                        success, message = execute_command(user_input)
+                        _, message = execute_command(user_input)
                         print(Fore.GREEN + f"[SYSTEM] {message}")
-                        system_extra_info = "The task you were asked to do is already complete. Keep your response very brief."
+                        system_extra_info = "Task complete. Keep response brief."
                 else:
-                    print(Fore.YELLOW + "[SYSTEM] Command execution is disabled in settings.")
+                    print(Fore.YELLOW + "[SYSTEM] Command execution disabled.")
                     continue
 
             colors = profile_data.get("colors", {})
-            text_color_name = colors.get("text", "WHITE").upper()
-            text_style = getattr(Fore, text_color_name, Fore.WHITE)
+            text_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE)
 
             print(Fore.WHITE + Style.DIM + "-" * 30)
             print(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.NORMAL + text_style, end="", flush=True)
 
             full_response = ""
-            current_sentence = ""
+            current_buffer = ""
             in_narration = False
             narration_style = Fore.BLACK + Style.BRIGHT
 
@@ -168,39 +174,31 @@ def run_app():
                         print(char, end="", flush=True)
 
                 full_response += chunk
-                current_sentence += chunk
+                current_buffer += chunk
 
-                # IMPORTANT: Only split for TTS if all narration blocks are closed (even number of asterisks)
-                # and we hit a punctuation/newline OR the buffer is getting very long.
-                num_asterisks = current_sentence.count('*')
-                is_balanced = (num_asterisks % 2 == 0)
-
-                if (any(punct in chunk for punct in ".!?\n") or len(current_sentence) > 100) and is_balanced:
-                    parts = re.split(r'(?<=[.!?\n])', current_sentence)
-                    for i in range(len(parts) - 1):
-                        segment = parts[i].strip()
+                # Check for safe split points
+                split_points = get_smart_split_points(current_buffer)
+                if split_points:
+                    last_point = 0
+                    for point in split_points:
+                        segment = current_buffer[last_point:point].strip()
                         if segment:
                             cleaned = clean_text_for_tts(segment)
                             if cleaned:
                                 tts_text_queue.put(cleaned)
-                    current_sentence = parts[-1]
+                        last_point = point
+                    current_buffer = current_buffer[last_point:]
 
-            # Final leftover text
-            if current_sentence.strip():
-                # Clean out potential metadata tags first
-                clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_sentence).strip()
+            # Final Cleanup
+            if current_buffer.strip():
+                clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_buffer).strip()
                 cleaned = clean_text_for_tts(clean_leftover)
                 if cleaned:
                     tts_text_queue.put(cleaned)
 
-            print("\n")
-            if is_command(user_input) and not should_obey:
-                print(Fore.RED + f"[SYSTEM] {ch_name} refused to help.")
-
-            print(Fore.WHITE + Style.DIM + "-" * 30)
+            print("\n" + Fore.WHITE + Style.DIM + "-" * 30)
             tts_text_queue.put(None)
-            gen_thread.join()
-            play_thread.join()
+            gen_thread.join(); play_thread.join()
 
         except (KeyboardInterrupt, RestartRequested):
             raise
