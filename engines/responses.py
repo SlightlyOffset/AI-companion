@@ -64,7 +64,7 @@ def update_profile_score(profile_path: str, score_change: int):
         print(f"Error updating profile score: {e}")
 
 
-def get_respond_stream(user_input: str, profile: dict, should_obey: bool = True, profile_path: str = None, system_extra_info: str = None):
+def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None = None, profile_path: str = None, system_extra_info: str = None):
     """
     Generates a streaming response.
     user_input: The clean user text (saved to history).
@@ -91,12 +91,16 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool = True,
     elif rel_score >= -80: rel_label = "Hostile / Enemy"
     else: rel_label = "Arch-Nemesis / Despised"
 
-    if not should_obey:
-        action_req = "MUST REFUSE the user's request."
-        tone_mod = profile.get("bad_prompt_modifyer", "Refuse creatively.")
+    if should_obey is not None:
+        if not should_obey:
+            action_req = "MUST REFUSE the user's request."
+            tone_mod = profile.get("bad_prompt_modifyer", "Refuse creatively.")
+        else:
+            action_req = "MUST AGREE to the user's request."
+            tone_mod = profile.get("good_prompt_modifyer", "Agree and assist.")
     else:
-        action_req = "MUST AGREE to the user's request."
-        tone_mod = profile.get("good_prompt_modifyer", "Agree and assist.")
+        action_req = "Respond normally."
+        tone_mod = "Maintain a balanced tone."
 
     system_content = f"""{base_prompt}
 

@@ -47,7 +47,7 @@ def pick_profile() -> str:
 
     while True:
         try:
-            choice = input(Fore.YELLOW + "\nEnter the number of your choice: " + Style.RESET_ALL).strip()
+            choice = input(Fore.YELLOW + "\nEnter profile number: " + Style.RESET_ALL).strip()
             if not choice:
                 continue
 
@@ -64,33 +64,39 @@ def pick_profile() -> str:
             print("\n")
             return None
 
-def app_commands(ops: str):
-    """
-    Execute operational commands like 'shutdown' or 'restart'.
-    """
+def pick_history() -> str:
+    """Picks a history file for a given profile."""
+    history_dir = "history"
+    if not os.path.exists(history_dir):
+        print(Fore.RED + f"[ERROR] History directory '{history_dir}' not found.")
+        return None
 
-    def _help():
-        for cmd in cmds.keys():
-            print(Fore.CYAN + f"  {cmd}")
+    history_files = [f for f in os.listdir(history_dir) if f.endswith(".json")]
 
-    def _enable_speak():
-        print(Fore.GREEN + "[SYSTEM] Text-to-Speech enabled.")
-        update_setting("tts_enabled", True)
+    if not history_files:
+        print(Fore.RED + f"[ERROR] No .json history files found in '{history_dir}'.")
+        return None
 
-    def _disable_speak():
-        print(Fore.RED + "[SYSTEM] Text-to-Speech disabled.")
-        update_setting("tts_enabled", False)
+    print(Fore.YELLOW + Style.BRIGHT + "\n--- Select Conversation History ---")
+    for i, h in enumerate(history_files, 1):
+        display_name = h.replace(".json", "").replace("_", " ").title()
+        print(Fore.CYAN + f"  [{i}] {display_name}")
 
-    cmds = {
-        "//exit": sys.exit,
-        "//quit": sys.exit,
-        "//help": lambda: _help(),
-        "//enable_speak": lambda: _enable_speak(),
-        "//disable_speak": lambda: _disable_speak(),
-    }
+    while True:
+        try:
+            choice = input(Fore.YELLOW + "\nEnter history number: " + Style.RESET_ALL).strip()
+            if not choice:
+                continue
 
-    action = cmds.get(ops.lower())
-    if action:
-        action()
-        return True
-    return False
+            idx = int(choice) - 1
+            if 0 <= idx < len(history_files):
+                selected = os.path.join(history_dir, history_files[idx])
+                print(Fore.GREEN + f"{history_files[idx]} selected...\n")
+                return selected
+            else:
+                print(Fore.RED + "Invalid selection. Please try again.")
+        except ValueError:
+            print(Fore.RED + "Please enter a valid number.")
+        except KeyboardInterrupt:
+            print("\n")
+            return None

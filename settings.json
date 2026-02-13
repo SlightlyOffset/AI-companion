@@ -1,5 +1,6 @@
 {
-    "tts_enabled": false,
+    "tts_enabled": true,
+    "execute_command": false,
     "default_tts_voice": "en-GB-SoniaNeural",
     "tts_rate": 170,
     "default_llm_model": "llama3",

@@ -14,12 +14,15 @@ from colorama import init, Fore, Style
 from engines.actions import execute_command
 from engines.utilities import is_command
 from engines.utilities import pick_profile
-from engines.utilities import app_commands
+from engines.app_commands import app_commands
 from engines.responses import get_respond_stream, apply_mood_decay
-from engines.tts_module import speak, generate_audio, play_audio, clean_text_for_tts
+from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
 
 # Initialize colorama
 init(autoreset=True)
+
+# Congig path
+CONFIG_PATH = "settings.json"
 
 def load_profile(profile_path):
     with open(profile_path, "r", encoding="UTF-8") as f:
@@ -67,9 +70,15 @@ def main():
 
     print(Fore.YELLOW + Style.BRIGHT + f"--- {name} Desktop Companion Loaded ---")
     print(Fore.YELLOW + "Type '//help' for a list of commands.\n")
+    print(Fore.YELLOW + Style.DIM + "[ NOTICE ]: This is an early build. Expect some quirks and crashes. Feedback is appreciated!")
+    print(Fore.YELLOW + Style.DIM + "[ NOTICE ]: Take everything the AI says with a grain of salt! It may produce incorrect or nonsensical responses.\n")
 
     while True:
         try:
+            # Load config
+            with open(CONFIG_PATH, "r", encoding="UTF-8") as f:
+                config = json.load(f)
+
             # Refresh profile each loop to get updates
             profile = load_profile(profile_path)
             tts_pref = profile.get("preferred_tts_voice", None)
@@ -100,28 +109,38 @@ def main():
                     gen_thread.join()
                     play_thread.join()
                     continue
+                else:
+                    print(Fore.RED + "[SYSTEM] Unknown command. Type '//help' for a list of commands.")
+                    tts_text_queue.put(None)
+                    gen_thread.join()
+                    play_thread.join()
+                    continue
 
-            is_cmd = is_command(user_input)
-
-            # --- Relationship-Based Decision Logic ---
-            relationship_score = profile.get("relationship_score", 0)
-            rel_mod = relationship_score / 10.0
-
-            good_w = profile.get("good_weight", 5)
-            bad_w = profile.get("bad_weight", 5)
-
-            adj_good_w = max(0.1, good_w + rel_mod)
-            adj_bad_w = max(0.1, bad_w - rel_mod)
-
-            mood = random.choices(["good", "bad"], weights=[adj_good_w, adj_bad_w], k=1)[0]
-            should_obey = (mood == "good")
-
-            # Instant Action
+            # Determine if the AI should obey based on relationship score
+            should_obey = None
             system_extra_info = None
-            if is_cmd and should_obey:
-                success, message = execute_command(user_input)
-                print(Fore.GREEN + f"[SYSTEM] {message}")
-                system_extra_info = "The task you were asked to do is already complete. Keep your response very brief."
+            if is_command(user_input):
+                if config.get("execute_command", False):
+                    # --- Relationship-Based Decision Logic ---
+                    relationship_score = profile.get("relationship_score", 0)
+                    rel_mod = relationship_score / 10.0
+
+                    good_w = profile.get("good_weight", 5)
+                    bad_w = profile.get("bad_weight", 5)
+
+                    adj_good_w = max(0.1, good_w + rel_mod)
+                    adj_bad_w = max(0.1, bad_w - rel_mod)
+
+                    mood = random.choices(["good", "bad"], weights=[adj_good_w, adj_bad_w], k=1)[0]
+                    should_obey = (mood == "good")
+
+                    if should_obey:
+                        success, message = execute_command(user_input)
+                        print(Fore.GREEN + f"[SYSTEM] {message}")
+                        system_extra_info = "The task you were asked to do is already complete. Keep your response very brief."
+                else:
+                    print(Fore.YELLOW + "[SYSTEM] Command execution is disabled in settings.")
+                    continue
 
             # Colors for AI response
             colors = profile.get("colors", {})
@@ -166,7 +185,7 @@ def main():
 
             print("\n")
 
-            if is_cmd and not should_obey:
+            if is_command(user_input) and not should_obey:
                 print(Fore.RED + f"[SYSTEM] {name} refused to help.")
 
             print(Fore.WHITE + Style.DIM + "-" * 30)
