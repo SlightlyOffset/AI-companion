@@ -8,7 +8,7 @@
     "bad_prompt_modifyer": "Politely decline if you absolutely must, but try to be as helpful as possible.",
     "preferred_tts_voice": "en-GB-SoniaNeural",
     "llm_model": "llama3",
-    "relationship_score": 100,
+    "relationship_score": 0,
     "colors": {
         "text": "GREEN",
         "label": "NORMAL"
