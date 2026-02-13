@@ -4,7 +4,7 @@ import time
 import asyncio
 import socket
 import subprocess
-from colorama import Fore, Style
+from colorama import Fore
 from engines.config import get_setting
 
 # Attempt to import edge-tts
@@ -28,10 +28,19 @@ def clean_text_for_tts(text: str) -> str:
     Removes text between asterisks (usually actions/narration in RP)
     so they aren't spoken out loud.
     """
-    # Remove text inside *asterisks*
-    cleaned = re.sub(r'\*.*?\*', '', text)
-    # Remove double spaces left behind
+    # Remove text inside *asterisks* (including multi-line)
+    cleaned = re.sub(r'\*.*?\*', '', text, flags=re.DOTALL)
+
+    # Remove fragments like " *" or "* " that might be left if a sentence was split mid-asterisk
+    cleaned = cleaned.replace('*', '')
+
+    # Remove double spaces and strip
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+    # If the segment is just punctuation now, it should be empty
+    if all(char in ".,!?;:- " for char in cleaned):
+        return ""
+
     return cleaned
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
@@ -86,9 +95,9 @@ def play_audio_windows(filename):
     Sound.URL = "{abspath.replace('\\', '\\\\')}"
     Sound.Controls.play
     do while Sound.currentmedia.duration = 0
-        wscript.sleep 100
+        wscript.sleep 5
     loop
-    wscript.sleep (int(Sound.currentmedia.duration) + 1) * 1000
+    wscript.sleep (Sound.currentmedia.duration * 1000)
     """
 
     with open(vbs_path, "w") as f:
@@ -101,19 +110,52 @@ def play_audio_windows(filename):
     if os.path.exists(vbs_path):
         os.remove(vbs_path)
 
+def generate_audio(text, filename, voice=None):
+    """Generates audio file from text without playing it."""
+    if not EDGE_AVAILABLE or not is_online():
+        return False
+    try:
+        if voice is None:
+            voice = get_setting("default_tts_voice", "en-GB-SoniaNeural")
+        cleaned_text = clean_text_for_tts(text)
+        if not cleaned_text:
+            return False
+        asyncio.run(generate_edge_tts(cleaned_text, filename, voice=voice))
+        return True
+    except Exception as e:
+        print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
+        return False
+
+def play_audio(filename):
+    """Plays the audio file and removes it."""
+    # Check for tts enabled
+    if not get_setting("tts_enabled", True):
+        return
+
+    try:
+        if os.name == "nt":
+            play_audio_windows(filename)
+        else:
+            cmd = "xdg-open" if os.name == "posix" else "open"
+            subprocess.run([cmd, filename])
+            # rough estimate for non-windows
+            time.sleep(2)
+    except Exception as e:
+        print(Fore.RED + f"\n[TTS PLAY ERROR] {e}")
+    finally:
+        if os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except:
+                pass
+
 def tts_edge(text, filename="output_tts.mp3", voice=None):
     """Synchronous wrapper for edge-tts generation and playback."""
 
     if not EDGE_AVAILABLE:
         return tts_offline(text)
     try:
-        # Generation Indicator
-        print(Fore.YELLOW + Style.DIM + "  (Generating voice...)" + Style.RESET_ALL, end="\r")
         asyncio.run(generate_edge_tts(text, filename, voice=voice))
-
-        # Playing Indicator
-        print(" " * 30, end="\r") # Clear previous line
-        print(Fore.CYAN + Style.DIM + "  (Speaking...)" + Style.RESET_ALL, end="\r")
 
         if os.name == "nt":
             play_audio_windows(filename)
@@ -122,9 +164,6 @@ def tts_edge(text, filename="output_tts.mp3", voice=None):
             cmd = "xdg-open" if os.name == "posix" else "open"
             subprocess.run([cmd, filename])
             time.sleep(len(text) * 0.1)
-
-        # Clear indicators when done
-        print(" " * 30, end="\r")
 
     except Exception as e:
         print(Fore.RED + f"\n[TTS ERROR] {e}")

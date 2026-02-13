@@ -21,10 +21,10 @@
 - [x] **Sentiment Analysis**: Update mood based on user being "Nice" or "Mean"
 - [x] **Connect Mood to Obedience**: Update `main.py` to use relationship score for decisions
 - [x] **Relationship Awareness**: Add relationship tags to the prompt for context
-- [ ] **Mood Decay**: Implement logic for the AI to "calm down" over time
+- [x] **Mood Decay**: Implement logic for the AI to "calm down" over time
 
 ## Phase 4: Features & Polishing
-- [ ] Response streaming and voice streaming
+- [x] Response streaming and voice streaming
 - [ ] Implementing cloud computing for larger LLM e.g. 40B models
 - [ ] Add more complex triggers (time, weather, or custom jokes)
 - [ ] Implement background operation / system tray support

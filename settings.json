@@ -4,5 +4,6 @@
     "tts_rate": 170,
     "default_llm_model": "llama3",
     "history_limit": 10,
-    "debug_mode": false
+    "debug_mode": false,
+    "remote_llm_url": null
 }
