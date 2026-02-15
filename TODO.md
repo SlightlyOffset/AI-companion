@@ -44,3 +44,4 @@
 - [ ] Source or record custom voice for **Voice Cloning (XTTS v2)**
 - [ ] Finalize error handling for offline/online transitions
 - [ ] Implement Speech-to-Text (STT) for full voice control
+- [ ] Integrate Chafa to display character portraits in a separate terminal window

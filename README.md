@@ -46,7 +46,7 @@ A lightweight, highly immersive, and technically "bratty" AI companion that live
 
     ```bash
     git clone https://github.com/SlightlyOffset/AI-companion.git
-    cd Sassy-AI-Companion
+    cd AI-Companion
     ```
 
 2. **Install dependencies:**
