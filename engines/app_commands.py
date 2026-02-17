@@ -39,6 +39,11 @@ def app_commands(ops: str):
         for cmd in cmds.keys():
             print(Fore.CYAN + f"  {cmd}")
 
+    def _exit():
+        """Exits the application."""
+        print(Fore.YELLOW + "[SYSTEM] Exiting application...")
+        sys.exit(0)
+
     def _show_settings():
         """Displays current system settings from settings.json."""
         from engines.config import load_settings
@@ -71,8 +76,10 @@ def app_commands(ops: str):
         print(Fore.YELLOW + "[SYSTEM] Conversation history reset.")
         history_path = pick_history()
         if history_path:
-            with open(history_path, "w", encoding="UTF-8") as f:
-                json.dump([], f)
+            # Extract profile name from filename (e.g., 'Glitch_history.json' -> 'Glitch')
+            profile_name = os.path.basename(history_path).replace("_history.json", "")
+            from engines.memory_v2 import memory_manager
+            memory_manager.save_history(profile_name, [])
             print(Fore.GREEN + "[SYSTEM] History cleared.")
         else:
             print(Fore.RED + "[SYSTEM] No history selected.")
@@ -81,11 +88,11 @@ def app_commands(ops: str):
         """Wipes ALL history files in the history directory."""
         confirm = input(Fore.RED + "Are you sure you want to reset ALL history files? (y/n): ").strip().lower()
         if confirm == 'y':
+            from engines.memory_v2 import memory_manager
             for filename in os.listdir(HISTORY_PATH):
                 if filename.endswith(".json"):
-                    file_path = os.path.join(HISTORY_PATH, filename)
-                    with open(file_path, "w", encoding="UTF-8") as f:
-                        json.dump([], f)
+                    profile_name = filename.replace("_history.json", "")
+                    memory_manager.save_history(profile_name, [])
             print(Fore.GREEN + "[SYSTEM] All history files have been wiped.")
         else:
             print(Fore.YELLOW + "[SYSTEM] Reset cancelled.")
@@ -138,8 +145,8 @@ def app_commands(ops: str):
 
     # Mapping of command strings to their respective functions
     cmds = {
-        "//exit": sys.exit,
-        "//quit": sys.exit,
+        "//exit": _exit,
+        "//quit": _exit,
         "//help": _help,
         "//clear": _clear,
         "//change_character": _change_character,

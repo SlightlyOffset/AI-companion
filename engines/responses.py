@@ -8,7 +8,7 @@ import json
 import ollama
 import requests
 from datetime import datetime
-from engines.memory import save_conversation, load_conversation, get_last_timestamp
+from engines.memory_v2 import memory_manager
 from engines.config import get_setting
 from engines.prompts import build_system_prompt
 
@@ -24,7 +24,7 @@ def apply_mood_decay(profile_path: str, profile_name: str):
     Returns:
         tuple: (decay_amount, new_score) if decay happened, else None.
     """
-    last_time = get_last_timestamp(profile_name)
+    last_time = memory_manager.get_last_timestamp(profile_name)
     if not last_time:
         return 0, 0
 
@@ -103,9 +103,8 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     remote_url = get_setting("remote_llm_url")
 
     # Load history, filtering out internal system timestamps
-    history = load_conversation(name, filter_system=True)
     limit = get_setting("history_limit", 15)
-    history = history[-limit:] if history and limit > 0 else history
+    history = memory_manager.load_history(name, limit=limit)
 
     # Determine relationship label and instructions
     rel_score = profile.get("relationship_score", 0)
@@ -202,10 +201,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
             update_profile_score(profile_path, score_change)
 
         # Save the interaction to persistent memory
-        full_history = load_conversation(name, filter_system=False)
+        full_history = memory_manager.load_history(name)
         full_history.append({'role': 'user', 'content': user_input})
         full_history.append({'role': 'assistant', 'content': reply})
-        save_conversation(name, full_history)
+        memory_manager.save_history(name, full_history, mood_score=rel_score)
 
     except Exception as e:
         yield f"\n[BRAIN ERROR] {str(e)}"
