@@ -4,14 +4,14 @@ This plan outlines the steps to implement persistent chat history and the dynami
 
 ## Phase 1: Persistent Chat History
 
-- [ ] Task: Create `engines/memory_v2.py` with history persistence logic
-    - [ ] Write tests for loading/saving history to profile-specific JSON files
-    - [ ] Implement `HistoryManager` class to handle per-profile JSON I/O
-    - [ ] Implement history truncation logic (keep last 15 messages)
-- [ ] Task: Integrate `HistoryManager` into `main.py`
-    - [ ] Write tests for `main.py` interaction with `HistoryManager`
-    - [ ] Replace existing in-memory history with `HistoryManager`
-- [ ] Task: Conductor - User Manual Verification 'Persistent Chat History' (Protocol in workflow.md)
+- [x] Task: Create `engines/memory_v2.py` with history persistence logic
+    - [x] Write tests for loading/saving history to profile-specific JSON files
+    - [x] Implement `HistoryManager` class to handle per-profile JSON I/O
+    - [x] Implement history truncation logic (keep last 15 messages)
+- [x] Task: Integrate `HistoryManager` into `main.py`
+    - [x] Write tests for `main.py` interaction with `HistoryManager`
+    - [x] Replace existing in-memory history with `HistoryManager`
+- [x] Task: Conductor - User Manual Verification 'Persistent Chat History' (Protocol in workflow.md) f3c401d
 
 ## Phase 2: Mood Adjustment System
 
