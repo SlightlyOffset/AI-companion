@@ -24,3 +24,5 @@ java_poc/
 history/
 profiles/
 img/
+.gemini/
+gha-creds-*.json
