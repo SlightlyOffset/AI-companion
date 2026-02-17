@@ -1,7 +1,12 @@
 import unittest
 import os
+import sys
 import json
 import shutil
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from engines.memory_v2 import HistoryManager
 
 class TestHistoryManager(unittest.TestCase):
@@ -79,3 +84,4 @@ class TestHistoryManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
