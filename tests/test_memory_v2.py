@@ -52,5 +52,30 @@ class TestHistoryManager(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "ProfileA_history.json")))
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "ProfileB_history.json")))
 
+    def test_is_recent_interaction(self):
+        profile = "RecentProfile"
+        # Save history (sets timestamp to now)
+        self.manager.save_history(profile, [{"role": "user", "content": "hello"}])
+        
+        # Should be recent (within 24 hours)
+        self.assertTrue(self.manager.is_recent_interaction(profile, hours=24))
+        
+        # Mocking an old timestamp (this is a bit tricky without patching, 
+        # but I can manually overwrite the file for the test)
+        filename = self.manager._get_filename(profile)
+        with open(filename, "r", encoding="UTF-8") as f:
+            data = json.load(f)
+        
+        # Set to 25 hours ago
+        from datetime import datetime, timedelta
+        old_time = (datetime.now() - timedelta(hours=25)).strftime("%Y-%m-%d | %H:%M:%S")
+        data["metadata"]["last_interaction"] = old_time
+        
+        with open(filename, "w", encoding="UTF-8") as f:
+            json.dump(data, f)
+            
+        # Should NOT be recent anymore
+        self.assertFalse(self.manager.is_recent_interaction(profile, hours=24))
+
 if __name__ == "__main__":
     unittest.main()

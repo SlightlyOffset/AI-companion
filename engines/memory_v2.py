@@ -112,5 +112,17 @@ class HistoryManager:
                 return None
         return None
 
+    def is_recent_interaction(self, profile_name: str, hours: int = 24) -> bool:
+        """
+        Checks if the last interaction was within a certain number of hours.
+        """
+        last_time = self.get_last_timestamp(profile_name)
+        if not last_time:
+            return False
+        
+        now = datetime.now()
+        diff = now - last_time
+        return (diff.total_seconds() / 3600) <= hours
+
 # Global instance for easy access across the application
 memory_manager = HistoryManager()
