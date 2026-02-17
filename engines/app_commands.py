@@ -6,11 +6,12 @@ Processes commands starting with '//' to manage settings, history, and app state
 import sys
 import os
 import json
-from colorama import Fore, init
+from colorama import Fore, init, Style
 from engines.config import update_setting, get_setting
 from engines.utilities import pick_history
 from engines.utilities import pick_profile
 from engines.utilities import pick_user_profile
+from engines.memory_v2 import memory_manager # Import memory_manager
 
 # Initialize colorama
 init(autoreset=True)
@@ -78,7 +79,6 @@ def app_commands(ops: str):
         if history_path:
             # Extract profile name from filename (e.g., 'Glitch_history.json' -> 'Glitch')
             profile_name = os.path.basename(history_path).replace("_history.json", "")
-            from engines.memory_v2 import memory_manager
             memory_manager.save_history(profile_name, [])
             print(Fore.GREEN + "[SYSTEM] History cleared.")
         else:
@@ -88,7 +88,6 @@ def app_commands(ops: str):
         """Wipes ALL history files in the history directory."""
         confirm = input(Fore.RED + "Are you sure you want to reset ALL history files? (y/n): ").strip().lower()
         if confirm == 'y':
-            from engines.memory_v2 import memory_manager
             for filename in os.listdir(HISTORY_PATH):
                 if filename.endswith(".json"):
                     profile_name = filename.replace("_history.json", "")
@@ -143,6 +142,27 @@ def app_commands(ops: str):
         print(Fore.GREEN + "[SYSTEM] Console will now clear at startup." if not is_enabled else Fore.RED + "[SYSTEM] Console will no longer clear at startup.")
         update_setting("clear_at_start", not is_enabled)
 
+    def _history():
+        """Displays the last 15 messages from the current character's history."""
+        current_profile_setting = get_setting("current_character_profile")
+        if not current_profile_setting:
+            print(Fore.RED + "[SYSTEM] No character profile active. Cannot display history." + Style.RESET_ALL)
+            return
+
+        # Extract character name from the profile path stored in settings
+        profile_name = os.path.basename(current_profile_setting).replace(".json", "")
+        
+        recap_messages = memory_manager.load_history(profile_name, limit=15)
+        if recap_messages:
+            print(Fore.WHITE + Style.DIM + "\n=== Past Conversation ===" + Style.RESET_ALL)
+            for msg in recap_messages:
+                role = msg.get("role", "Unknown").capitalize()
+                content = msg.get("content", "")
+                print(Fore.LIGHTBLACK_EX + f"{role}: {content}" + Style.RESET_ALL)
+            print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
+        else:
+            print(Fore.YELLOW + "[SYSTEM] No history found for the current profile." + Style.RESET_ALL)
+
     # Mapping of command strings to their respective functions
     cmds = {
         "//exit": _exit,
@@ -160,6 +180,8 @@ def app_commands(ops: str):
         "//toggle_command": _toggle_command,
         "//toggle_clear_at_start": _toggle_clear_at_start,
         "//show_settings": _show_settings,
+        "//history": _history,
+        "//recap": _history,
     }
 
     action = cmds.get(ops.lower())
