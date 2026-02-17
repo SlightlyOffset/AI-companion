@@ -24,6 +24,7 @@ from engines.app_commands import app_commands, RestartRequested
 from engines.responses import get_respond_stream, apply_mood_decay
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
 from engines.config import update_setting, get_setting
+from engines.memory_v2 import memory_manager
 
 # Initialize colorama
 init(autoreset=False)
@@ -110,6 +111,18 @@ def run_app():
     print(Fore.YELLOW + Style.BRIGHT + f"--- {ch_name} Desktop Companion Loaded ---" + Style.RESET_ALL)
     print(Fore.YELLOW + "Type '//help' for a list of commands.\n" + Style.RESET_ALL)
 
+    # --- Automatic Recap Display ---
+    recap_messages = memory_manager.load_history(ch_name, limit=5)
+    if recap_messages:
+        print(Fore.WHITE + Style.DIM + "=== Past Conversation ===" + Style.RESET_ALL)
+        for msg in recap_messages:
+            role = msg.get("role", "Unknown").capitalize()
+            content = msg.get("content", "")
+            # Basic styling for recap messages - will be refined in Phase 3
+            print(Fore.LIGHTBLACK_EX + f"{role}: {content}" + Style.RESET_ALL)
+        print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
+    # --- End Automatic Recap Display ---
+
     while True:
         try:
             with open(CONFIG_PATH, "r", encoding="UTF-8") as f:
@@ -134,6 +147,11 @@ def run_app():
 
             if user_input.startswith("//"):
                 if app_commands(user_input):
+                    tts_text_queue.put(None)
+                    gen_thread.join(); play_thread.join()
+                    continue
+                else:
+                    print(Fore.RED + "[SYSTEM] Unknown command. Type '//help' for a list of commands." + Style.RESET_ALL)
                     tts_text_queue.put(None)
                     gen_thread.join(); play_thread.join()
                     continue
