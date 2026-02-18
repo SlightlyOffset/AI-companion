@@ -46,18 +46,18 @@ tts_text_queue = queue.Queue()
 audio_file_queue = queue.Queue()
 
 def tts_generation_worker():
-    """Worker thread that converts text to MP3. Expects (text, voice) tuples."""
+    """Worker thread that converts text to MP3. Expects (text, voice, engine, clone_ref) tuples."""
     while True:
         data = tts_text_queue.get()
         if data is None:
             audio_file_queue.put(None)
             break
 
-        text, voice = data
+        text, voice, engine, clone_ref = data
         temp_dir = os.environ.get("TEMP", "/tmp")
         temp_filename = os.path.join(temp_dir, f"tts_{time.time()}_{random.randint(1000,9999)}.mp3")
 
-        if generate_audio(text, temp_filename, voice=voice):
+        if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref):
             audio_file_queue.put(temp_filename)
         tts_text_queue.task_done()
 
@@ -125,6 +125,7 @@ def run_app():
     if get_setting("auto_recap_on_start", False):
         startup_recap(history_profile_name, user_name, ch_name)
 
+    # Main interaction loop
     while True:
         try:
             with open(CONFIG_PATH, "r", encoding="UTF-8") as f:
@@ -132,7 +133,11 @@ def run_app():
 
             profile_data = load_profile(character_profile_path)
             char_voice = profile_data.get("preferred_tts_voice", None)
+            char_engine = profile_data.get("tts_engine", "edge-tts")
+            char_clone_ref = profile_data.get("voice_clone_ref", None)
+            
             narrator_voice = get_setting("narration_tts_voice", "en-US-AndrewNeural")
+            narrator_engine = "edge-tts"
 
             apply_mood_decay(character_profile_path, history_profile_name)
 
@@ -209,6 +214,8 @@ def run_app():
                         # UNLESS the segment IS the narration itself.
                         # If a segment is "*", it toggles the state for the NEXT segment.
                         voice = narrator_voice if tts_in_narration or contains_asterisk else char_voice
+                        engine = narrator_engine if tts_in_narration or contains_asterisk else char_engine
+                        clone_ref = None if tts_in_narration or contains_asterisk else char_clone_ref
 
                         # Update the state for the next segment if we hit an asterisk
                         if contains_asterisk:
@@ -216,16 +223,18 @@ def run_app():
 
                         cleaned = clean_text_for_tts(segment, speak_narration=True)
                         if cleaned:
-                            tts_text_queue.put((cleaned, voice))
+                            tts_text_queue.put((cleaned, voice, engine, clone_ref))
                         last_point = point
                     current_buffer = current_buffer[last_point:]
 
             if current_buffer.strip():
                 clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_buffer).strip()
                 voice = narrator_voice if tts_in_narration or '*' in clean_leftover else char_voice
+                engine = narrator_engine if tts_in_narration or '*' in clean_leftover else char_engine
+                clone_ref = None if tts_in_narration or '*' in clean_leftover else char_clone_ref
                 cleaned = clean_text_for_tts(clean_leftover, speak_narration=True)
                 if cleaned:
-                    tts_text_queue.put((cleaned, voice))
+                    tts_text_queue.put((cleaned, voice, engine, clone_ref))
 
             sys.stdout.write(Style.RESET_ALL + "\n")
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)

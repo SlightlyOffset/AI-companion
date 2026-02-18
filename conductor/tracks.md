@@ -14,7 +14,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: XTTS v2 implementation**
+- [~] **Track: XTTS v2 implementation**
   *Link: [./tracks/xtts_v2_20260218/](./tracks/xtts_v2_20260218/)*
 
 ---

@@ -26,3 +26,7 @@ profiles/
 img/
 .gemini/
 gha-creds-*.json
+
+# XTTS v2 and Audio Cache
+models/
+cache/

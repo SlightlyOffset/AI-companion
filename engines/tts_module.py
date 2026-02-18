@@ -108,28 +108,32 @@ def play_audio_windows(filename):
     subprocess.run(["wscript.exe", vbs_path], capture_output=True)
     if os.path.exists(vbs_path): os.remove(vbs_path)
 
-def generate_audio(text, filename, voice=None):
+def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None):
     """
-    Converts text to an MP3 file.
-    Note: Text should be cleaned BEFORE passing it to this function if specific 
-    narration rules are needed.
+    Converts text to an MP3 or WAV file.
+    Supports edge-tts (default) and future XTTS.
     """
-    if not EDGE_AVAILABLE or not is_online():
-        return False
-    try:
-        if voice is None:
-            voice = get_setting("default_tts_voice", "en-GB-SoniaNeural")
-        
-        # We perform a generic clean just in case symbols were missed
-        cleaned_text = clean_text_for_tts(text, speak_narration=True)
-        if not cleaned_text:
+    if engine == "edge-tts":
+        if not EDGE_AVAILABLE or not is_online():
             return False
+        try:
+            if voice is None:
+                voice = get_setting("default_tts_voice", "en-GB-SoniaNeural")
+            
+            # We perform a generic clean just in case symbols were missed
+            cleaned_text = clean_text_for_tts(text, speak_narration=True)
+            if not cleaned_text:
+                return False
 
-        asyncio.run(generate_edge_tts(cleaned_text, filename, voice=voice))
-        return True
-    except Exception as e:
-        print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
-        return False
+            asyncio.run(generate_edge_tts(cleaned_text, filename, voice=voice))
+            return True
+        except Exception as e:
+            print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
+            return False
+    elif engine == "xtts":
+        return False # Not implemented yet
+
+    return False
 
 def play_audio(filename):
     """Plays and deletes the audio file."""
@@ -149,19 +153,18 @@ def play_audio(filename):
             try: os.remove(filename)
             except: pass
 
-def speak(text, pref_tts: str | None = None):
+def speak(text, pref_tts: str | None = None, engine="edge-tts", clone_ref=None):
     """High-level synchronous speak function."""
     if not get_setting("tts_enabled", True):
         return
-    cleaned_text = clean_text_for_tts(text, speak_narration=True)
-    if not cleaned_text:
-        return
-    if EDGE_AVAILABLE and is_online():
-        if pref_tts is None:
-            pref_tts = get_setting("default_tts_voice", "en-GB-SoniaNeural")
-        asyncio.run(generate_edge_tts(cleaned_text, "temp_speak.mp3", voice=pref_tts))
-        play_audio("temp_speak.mp3")
+    
+    filename = "temp_speak.mp3"
+    if generate_audio(text, filename, voice=pref_tts, engine=engine, clone_ref=clone_ref):
+        play_audio(filename)
     else:
+        # Fallback to pyttsx3 if edge-tts/xtts failed and offline engine available
         if OFFLINE_AVAILABLE:
-            engine = get_offline_engine()
-            engine.say(cleaned_text); engine.runAndWait()
+            cleaned_text = clean_text_for_tts(text, speak_narration=True)
+            if cleaned_text:
+                py_engine = get_offline_engine()
+                py_engine.say(cleaned_text); py_engine.runAndWait()

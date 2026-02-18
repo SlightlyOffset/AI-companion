@@ -4,14 +4,14 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
 
 ## Phase 1: Foundation & Project Structure
 
-- [ ] Task: Setup environment and project structure
-    - [ ] Create `/voices` directory for reference audio samples
-    - [ ] Update `.gitignore` to exclude large model files and cached audio outputs
-    - [ ] Create initial test suite for new TTS modules
-- [ ] Task: Update character profile schema and loading logic
-    - [ ] Write tests for profile validation including `voice_clone_ref` and `tts_engine` fields
-    - [ ] Update profile loading logic in `main.py` and `engines/utilities.py` to handle new XTTS configuration
-- [ ] Task: Conductor - User Manual Verification 'Foundation & Project Structure' (Protocol in workflow.md)
+- [x] Task: Setup environment and project structure
+    - [x] Create `/voices` directory for reference audio samples
+    - [x] Update `.gitignore` to exclude large model files and cached audio outputs
+    - [x] Create initial test suite for new TTS modules
+- [x] Task: Update character profile schema and loading logic
+    - [x] Write tests for profile validation including `voice_clone_ref` and `tts_engine` fields
+    - [x] Update profile loading logic in `main.py` and `engines/utilities.py` to handle new XTTS configuration
+- [~] Task: Conductor - User Manual Verification 'Foundation & Project Structure' (Protocol in workflow.md)
 
 ## Phase 2: Local XTTS Implementation
 
