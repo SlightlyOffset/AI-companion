@@ -52,3 +52,6 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
 - [x] Task: Final UI updates and status indicators
     - [x] Add terminal indicators to show generation status and the active TTS engine
 - [x] Task: Conductor - User Manual Verification 'Refinement & UI Updates' (Protocol in workflow.md)
+
+## Phase: Review Fixes
+- [x] Task: Apply review suggestions 47198fa
