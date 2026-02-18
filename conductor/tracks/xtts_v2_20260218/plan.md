@@ -15,14 +15,14 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
 
 ## Phase 2: Local XTTS Implementation
 
-- [ ] Task: Implement local XTTS inference module
-    - [ ] Write tests for local audio generation using XTTS v2 library
-    - [ ] Create `engines/xtts_local.py` with GPU acceleration support
-    - [ ] Implement VRAM-conscious model loading (optimized for RTX 3050 6GB)
-- [ ] Task: Implement engine switching and fallback logic in `engines/tts_module.py`
-    - [ ] Write tests for engine prioritization (XTTS -> Edge-TTS)
-    - [ ] Update `generate_audio` to dynamically select the engine based on profile settings and availability
-- [ ] Task: Conductor - User Manual Verification 'Local XTTS Implementation' (Protocol in workflow.md)
+- [x] Task: Implement local XTTS inference module
+    - [x] Write tests for local audio generation using XTTS v2 library
+    - [x] Create `engines/xtts_local.py` with GPU acceleration support
+    - [x] Implement VRAM-conscious model loading (optimized for RTX 3050 6GB)
+- [x] Task: Implement engine switching and fallback logic in `engines/tts_module.py`
+    - [x] Write tests for engine prioritization (XTTS -> Edge-TTS)
+    - [x] Update `generate_audio` to dynamically select the engine based on profile settings and availability
+- [~] Task: Conductor - User Manual Verification 'Local XTTS Implementation' (Protocol in workflow.md)
 
 ## Phase 3: Remote XTTS Bridge (Google Colab)
 

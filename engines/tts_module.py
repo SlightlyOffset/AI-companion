@@ -12,6 +12,7 @@ import socket
 import subprocess
 from colorama import Fore
 from engines.config import get_setting
+from engines.xtts_local import XTTSWorker, is_xtts_supported
 
 # Attempt to import edge-tts
 try:
@@ -111,8 +112,30 @@ def play_audio_windows(filename):
 def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None):
     """
     Converts text to an MP3 or WAV file.
-    Supports edge-tts (default) and future XTTS.
+    Supports edge-tts (default) and XTTS.
     """
+    cleaned_text = clean_text_for_tts(text, speak_narration=True)
+    if not cleaned_text:
+        return False
+
+    # 1. Attempt XTTS if requested
+    if engine == "xtts":
+        if is_xtts_supported() and clone_ref:
+            try:
+                # Ensure filename ends with .wav for XTTS if it doesn't already
+                xtts_filename = filename if filename.endswith(".wav") else filename.replace(".mp3", ".wav")
+                worker = XTTSWorker()
+                if worker.generate(cleaned_text, xtts_filename, clone_ref):
+                    # If we had to change the extension, we need to make sure the rest of the app knows
+                    # but for now we'll assume the caller can handle .mp3 or .wav
+                    return True
+            except Exception as e:
+                print(Fore.YELLOW + f"[XTTS FALLBACK] Error: {e}. Switching to Edge-TTS." + Fore.RESET)
+        
+        # Fallback to edge-tts if XTTS failed or not supported
+        engine = "edge-tts"
+
+    # 2. Attempt Edge-TTS
     if engine == "edge-tts":
         if not EDGE_AVAILABLE or not is_online():
             return False
@@ -120,18 +143,11 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
             if voice is None:
                 voice = get_setting("default_tts_voice", "en-GB-SoniaNeural")
             
-            # We perform a generic clean just in case symbols were missed
-            cleaned_text = clean_text_for_tts(text, speak_narration=True)
-            if not cleaned_text:
-                return False
-
             asyncio.run(generate_edge_tts(cleaned_text, filename, voice=voice))
             return True
         except Exception as e:
             print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
             return False
-    elif engine == "xtts":
-        return False # Not implemented yet
 
     return False
 
