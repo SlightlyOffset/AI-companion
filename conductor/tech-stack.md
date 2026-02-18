@@ -11,6 +11,9 @@
 
 ## Text-to-Speech (TTS)
 - **edge-tts**: Primary engine using Microsoft Edge's high-fidelity neural voices.
+- **XTTS v2**: High-fidelity voice cloning engine (Local CUDA or Remote Colab).
+- **torch**: Deep learning framework required for XTTS.
+- **TTS (library)**: Coqui TTS for voice cloning logic.
 - **pyttsx3**: Fallback engine for local, offline TTS.
 
 ## User Interface

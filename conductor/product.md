@@ -16,10 +16,10 @@ A lightweight, highly immersive AI companion that lives in the terminal. It feat
 
 ## Key Features
 - **Zero-Latency Multi-Voice TTS**: Intelligent switching between narrator and character voices using multi-threaded queuing.
+- **High-Fidelity Voice Cloning**: Integration of XTTS v2 for personalized character voices via local GPU or remote Colab bridge.
 - **Relationship & Mood Engine**: A persistent -100 to +100 meter that dictates the AI's tone, obedience, and emotional state.
 - **Profile-Dependent Personalities**: Customizable character profiles that dictate behavior, voice, and reaction styles.
 - **High-Performance CLI**: Beautiful terminal rendering with dynamic colors and styles, optimized for minimal CPU/RAM usage.
 
 ## Future Roadmap
 - **Dynamic Scene Memory**: Tracking location, time, and situational context for improved roleplay continuity.
-- **Local Voice Cloning**: Integration of XTTS v2 to allow for personalized and highly specific character voices.
