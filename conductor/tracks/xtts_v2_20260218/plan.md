@@ -34,7 +34,7 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
     - [x] Create `engines/xtts_remote.py` to handle communication with the Colab bridge
 - [x] Task: Conductor - User Manual Verification 'Remote XTTS Bridge (Google Colab)' (Protocol in workflow.md)
 
-## Phase 4: Optimization (Caching) & Integration
+## Phase 4: Optimization (Caching) & Integration [checkpoint: fa9864b]
 
 - [x] Task: Implement persistent audio caching
     - [x] Write tests for content-hash based cache lookup
@@ -42,7 +42,7 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
 - [x] Task: Integrate caching into the primary TTS pipeline
     - [x] Write tests for end-to-end cache hits during interaction
     - [x] Update `engines/tts_module.py` to prioritize cache retrieval over generation
-- [~] Task: Conductor - User Manual Verification 'Optimization (Caching) & Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Optimization (Caching) & Integration' (Protocol in workflow.md)
 
 ## Phase 5: Refinement & UI Updates
 
