@@ -15,13 +15,13 @@ This plan outlines the steps to implement a "recap" feature that loads past conv
 ## Phase 2: Terminal Recap Integration
 
 - [x] Task: Integrate automatic recap into `main.py` startup 28c40a0
-    - [ ] Write tests for displaying 3-5 messages on startup (mocking `print`)
+    - [x] Write tests for displaying 3-5 messages on startup (mocking `print`)
     - [x] Modify `main.py` to fetch the last 5 messages using `memory_manager.load_history(ch_name, limit=5)` before the input loop
     - [x] Implement a visual separator `=== Past Conversation ===` and header for the recap
-- [ ] Task: Implement `//history` command in `engines/app_commands.py`
-    - [ ] Write tests for the `//history` command execution and output
-    - [ ] Add `//history` and `//recap` to the `cmds` dictionary in `engines/app_commands.py`
-    - [ ] The command should fetch the last 15 messages and display them with the same styling as the automatic recap
+- [x] Task: Implement `//history` command in `engines/app_commands.py` 18be2dc
+    - [x] Write tests for the `//history` command execution and output
+    - [x] Add `//history` and `//recap` to the `cmds` dictionary in `engines/app_commands.py`
+    - [x] The command should fetch the last 15 messages and display them with the same styling as the automatic recap
 - [ ] Task: Conductor - User Manual Verification 'Terminal Recap Integration' (Protocol in workflow.md)
 
 ## Phase 3: UI/UX Refinement
