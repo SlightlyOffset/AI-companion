@@ -24,7 +24,7 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
     - [x] Update `generate_audio` to dynamically select the engine based on profile settings and availability
 - [x] Task: Conductor - User Manual Verification 'Local XTTS Implementation' (Protocol in workflow.md)
 
-## Phase 3: Remote XTTS Bridge (Google Colab)
+## Phase 3: Remote XTTS Bridge (Google Colab) [checkpoint: 5334b2d]
 
 - [x] Task: Develop XTTS Remote Bridge (Jupyter Notebook)
     - [x] Create `XTTS_Bridge.ipynb` for deployment on Google Colab
@@ -32,17 +32,17 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
 - [x] Task: Implement remote XTTS client
     - [x] Write tests for remote connectivity and binary audio data handling
     - [x] Create `engines/xtts_remote.py` to handle communication with the Colab bridge
-- [~] Task: Conductor - User Manual Verification 'Remote XTTS Bridge (Google Colab)' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Remote XTTS Bridge (Google Colab)' (Protocol in workflow.md)
 
 ## Phase 4: Optimization (Caching) & Integration
 
-- [ ] Task: Implement persistent audio caching
-    - [ ] Write tests for content-hash based cache lookup
-    - [ ] Implement `engines/audio_cache.py` to manage stored audio clips
-- [ ] Task: Integrate caching into the primary TTS pipeline
-    - [ ] Write tests for end-to-end cache hits during interaction
-    - [ ] Update `engines/tts_module.py` to prioritize cache retrieval over generation
-- [ ] Task: Conductor - User Manual Verification 'Optimization (Caching) & Integration' (Protocol in workflow.md)
+- [x] Task: Implement persistent audio caching
+    - [x] Write tests for content-hash based cache lookup
+    - [x] Implement `engines/audio_cache.py` to manage stored audio clips
+- [x] Task: Integrate caching into the primary TTS pipeline
+    - [x] Write tests for end-to-end cache hits during interaction
+    - [x] Update `engines/tts_module.py` to prioritize cache retrieval over generation
+- [~] Task: Conductor - User Manual Verification 'Optimization (Caching) & Integration' (Protocol in workflow.md)
 
 ## Phase 5: Refinement & UI Updates
 

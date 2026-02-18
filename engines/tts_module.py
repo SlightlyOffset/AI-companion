@@ -11,8 +11,10 @@ import asyncio
 import socket
 import subprocess
 from colorama import Fore
+import shutil
 from engines.config import get_setting
 from engines.xtts_local import XTTSWorker, is_xtts_supported
+from engines.audio_cache import get_cache_path, save_to_cache
 
 # Attempt to import edge-tts
 try:
@@ -32,7 +34,7 @@ _offline_engine = None
 
 def clean_text_for_tts(text: str, speak_narration: bool = True) -> str:
     """
-    Cleans text for the TTS engine. 
+    Cleans text for the TTS engine.
     Either strips narration (*...*) or just removes the symbols based on settings.
 
     Args:
@@ -118,6 +120,24 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
     if not cleaned_text:
         return False
 
+    # --- Cache Check ---
+    # Determine cache key parameters
+    cache_voice = voice if voice else "default"
+    cache_key_engine = engine
+    if engine == "xtts" and clone_ref:
+        cache_key_engine = f"xtts_{os.path.basename(clone_ref)}"
+    
+    # Check if we have this cached
+    cached_path = get_cache_path(cleaned_text, cache_voice, cache_key_engine)
+    
+    if os.path.exists(cached_path):
+        try:
+            shutil.copy(cached_path, filename)
+            return True
+        except Exception as e:
+            print(Fore.YELLOW + f"[TTS CACHE] Failed to copy cache: {e}" + Fore.RESET)
+    # -------------------
+
     # 1. Attempt XTTS if requested
     if engine == "xtts":
         if is_xtts_supported() and clone_ref:
@@ -126,8 +146,9 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
                 xtts_filename = filename if filename.endswith(".wav") else filename.replace(".mp3", ".wav")
                 worker = XTTSWorker()
                 if worker.generate(cleaned_text, xtts_filename, clone_ref):
-                    # If we had to change the extension, we need to make sure the rest of the app knows
-                    # but for now we'll assume the caller can handle .mp3 or .wav
+                    # Save to cache
+                    with open(xtts_filename, "rb") as f:
+                        save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
                     return True
             except Exception as e:
                 print(Fore.YELLOW + f"[XTTS FALLBACK] Error: {e}. Switching to Edge-TTS." + Fore.RESET)
@@ -144,13 +165,18 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
                 voice = get_setting("default_tts_voice", "en-GB-SoniaNeural")
             
             asyncio.run(generate_edge_tts(cleaned_text, filename, voice=voice))
+            
+            # Save to cache
+            if os.path.exists(filename):
+                with open(filename, "rb") as f:
+                    save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
+            
             return True
         except Exception as e:
             print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
             return False
 
     return False
-
 def play_audio(filename):
     """Plays and deletes the audio file."""
     if not get_setting("tts_enabled", True):
@@ -173,7 +199,7 @@ def speak(text, pref_tts: str | None = None, engine="edge-tts", clone_ref=None):
     """High-level synchronous speak function."""
     if not get_setting("tts_enabled", True):
         return
-    
+
     filename = "temp_speak.mp3"
     if generate_audio(text, filename, voice=pref_tts, engine=engine, clone_ref=clone_ref):
         play_audio(filename)
