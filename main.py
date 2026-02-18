@@ -98,7 +98,9 @@ def run_app():
         return
 
     character_profile = load_profile(character_profile_path)
-    ch_name = character_profile["name"]
+    ch_name = character_profile["name"] # For display
+    history_profile_name = os.path.basename(character_profile_path).replace(".json", "") # For history
+    update_setting("current_character_profile", os.path.basename(character_profile_path)) # Set active profile
 
     user_profile_path = pick_user_profile()
     if user_profile_path:
@@ -112,7 +114,7 @@ def run_app():
     print(Fore.YELLOW + "Type '//help' for a list of commands.\n" + Style.RESET_ALL)
 
     # --- Automatic Recap Display ---
-    recap_messages = memory_manager.load_history(ch_name, limit=5)
+    recap_messages = memory_manager.load_history(history_profile_name, limit=5)
     if recap_messages:
         print(Fore.WHITE + Style.DIM + "=== Past Conversation ===" + Style.RESET_ALL)
         for msg in recap_messages:
@@ -132,7 +134,7 @@ def run_app():
             char_voice = profile_data.get("preferred_tts_voice", None)
             narrator_voice = get_setting("narration_tts_voice", "en-US-AndrewNeural")
 
-            apply_mood_decay(character_profile_path, ch_name)
+            apply_mood_decay(character_profile_path, history_profile_name)
 
             gen_thread = threading.Thread(target=tts_generation_worker)
             play_thread = threading.Thread(target=tts_playback_worker)
