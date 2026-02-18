@@ -11,3 +11,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Recap Viewport Implementation**
   *Link: [./tracks/recap_viewport_20260218/](./tracks/recap_viewport_20260218/)*
+
+---
+
+- [ ] **Track: XTTS v2 implementation**
+  *Link: [./tracks/xtts_v2_20260218/](./tracks/xtts_v2_20260218/)*

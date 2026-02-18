@@ -92,6 +92,14 @@ def get_smart_split_points(text):
                 points.append(i + 1)
     return points
 
+def startup_recap(history_profile_name, user_name, ch_name):
+    recap_messages = memory_manager.load_history(history_profile_name, limit=5)
+    if recap_messages:
+        print(Fore.WHITE + Style.DIM + "=== Past Conversation ===" + Style.RESET_ALL)
+        for msg in recap_messages:
+            render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
+        print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
+
 def run_app():
     character_profile_path = pick_profile()
     if not character_profile_path:
@@ -113,14 +121,9 @@ def run_app():
     print(Fore.YELLOW + Style.BRIGHT + f"--- {ch_name} Desktop Companion Loaded ---" + Style.RESET_ALL)
     print(Fore.YELLOW + "Type '//help' for a list of commands.\n" + Style.RESET_ALL)
 
-    # --- Automatic Recap Display ---
-    recap_messages = memory_manager.load_history(history_profile_name, limit=5)
-    if recap_messages:
-        print(Fore.WHITE + Style.DIM + "=== Past Conversation ===" + Style.RESET_ALL)
-        for msg in recap_messages:
-            render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
-        print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
-    # --- End Automatic Recap Display ---
+    # Startup recap
+    if get_setting("auto_recap_on_start", False):
+        startup_recap(history_profile_name, user_name, ch_name)
 
     while True:
         try:

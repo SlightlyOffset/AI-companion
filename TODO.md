@@ -38,10 +38,10 @@
 
 - [x] Response streaming and voice streaming
 - [x] Implementing cloud computing for larger LLM e.g. 40B models
-- [ ] Implement recap or load history into terminal view
+- [x] Implement recap or load history into terminal view
 - [ ] Add more complex triggers (time, weather, or custom jokes)
 - [ ] Implement background operation / system tray support
-- [ ] Source or record custom voice for **Voice Cloning (XTTS v2)**
+- [~] Source or record custom voice for **Voice Cloning (XTTS v2)**
 - [ ] Finalize error handling for offline/online transitions
 - [ ] Implement Speech-to-Text (STT) for full voice control
 - [ ] Integrate Chafa to display character portraits in a separate terminal window

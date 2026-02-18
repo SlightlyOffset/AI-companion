@@ -114,6 +114,7 @@ def app_commands(ops: str):
         else:
             print(Fore.RED + "[SYSTEM] No profile selected.")
 
+    # Note: Still somewhat buggy.
     def _restart():
         """Signals the main loop to restart."""
         print(Fore.YELLOW + "[SYSTEM] Restarting application...")
@@ -141,7 +142,7 @@ def app_commands(ops: str):
         else:
             print(Fore.RED + "[SYSTEM] No user profile selected.")
 
-    def _toggle_clear_at_start():
+    def _toggle_clear_on_start():
         is_enabled = get_setting("clear_at_start", True)
         print(Fore.GREEN + "[SYSTEM] Console will now clear at startup." if not is_enabled else Fore.RED + "[SYSTEM] Console will no longer clear at startup.")
         update_setting("clear_at_start", not is_enabled)
@@ -155,15 +156,15 @@ def app_commands(ops: str):
 
         # Extract character name from the profile path stored in settings
         profile_name = os.path.basename(current_profile_setting).replace(".json", "")
-        
+
         # Try to get display names
         ch_name = "Assistant"
         user_name = "User"
-        
+
         try:
             with open(os.path.join("profiles", current_profile_setting), "r", encoding="UTF-8") as f:
                 ch_name = json.load(f).get("name", "Assistant")
-            
+
             user_profile_filename = get_setting("current_user_profile")
             if user_profile_filename:
                 with open(os.path.join("user_profiles", user_profile_filename), "r", encoding="UTF-8") as f:
@@ -180,6 +181,11 @@ def app_commands(ops: str):
         else:
             print(Fore.YELLOW + "[SYSTEM] No history found for the current profile." + Style.RESET_ALL)
 
+    def _toggle_recap_on_start():
+        is_enabled = get_setting("auto_recap_on_start", True)
+        print(Fore.GREEN + "[SYSTEM] Auto recap at startup is now enabled." if not is_enabled else Fore.RED + "[SYSTEM] Auto recap at startup is now disabled.")
+        update_setting("auto_recap_on_start", not is_enabled)
+
     # Mapping of command strings to their respective functions
     cmds = {
         "//exit": _exit,
@@ -195,7 +201,8 @@ def app_commands(ops: str):
         "//toggle_speak": _toggle_speak,
         "//toggle_narration": _toggle_narration,
         "//toggle_command": _toggle_command,
-        "//toggle_clear_at_start": _toggle_clear_at_start,
+        "//toggle_clear_at_start": _toggle_clear_on_start,
+        "//toggle_recap_on_start": _toggle_recap_on_start,
         "//show_settings": _show_settings,
         "//history": _history,
         "//recap": _history,

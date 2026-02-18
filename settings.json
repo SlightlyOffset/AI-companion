@@ -9,6 +9,8 @@
     "default_llm_model": "fluffy/l3-8b-stheno-v3.2",
     "history_limit": 10,
     "current_user_profile": "Manganese.json",
+    "current_character_profile": "Glitch.json",
     "debug_mode": false,
-    "clear_at_start": false
+    "clear_on_start": false,
+    "auto_recap_on_start": true
 }
