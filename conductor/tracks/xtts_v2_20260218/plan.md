@@ -46,9 +46,9 @@ This plan outlines the steps to implement high-fidelity voice cloning using XTTS
 
 ## Phase 5: Refinement & UI Updates
 
-- [ ] Task: Support Multi-Language Cloning
-    - [ ] Write tests for language-specific generation using non-English references
-    - [ ] Implement language parameter support in XTTS modules
-- [ ] Task: Final UI updates and status indicators
-    - [ ] Add terminal indicators to show generation status and the active TTS engine
-- [ ] Task: Conductor - User Manual Verification 'Refinement & UI Updates' (Protocol in workflow.md)
+- [x] Task: Support Multi-Language Cloning
+    - [x] Write tests for language-specific generation using non-English references
+    - [x] Implement language parameter support in XTTS modules
+- [x] Task: Final UI updates and status indicators
+    - [x] Add terminal indicators to show generation status and the active TTS engine
+- [x] Task: Conductor - User Manual Verification 'Refinement & UI Updates' (Protocol in workflow.md)

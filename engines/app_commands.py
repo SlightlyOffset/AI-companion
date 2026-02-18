@@ -4,6 +4,7 @@ Processes commands starting with '//' to manage settings, history, and app state
 """
 import sys
 import os
+import shutil
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import re
@@ -185,6 +186,18 @@ def app_commands(ops: str):
         is_enabled = get_setting("auto_recap_on_start", True)
         print(Fore.GREEN + "[SYSTEM] Auto recap at startup is now enabled." if not is_enabled else Fore.RED + "[SYSTEM] Auto recap at startup is now disabled.")
         update_setting("auto_recap_on_start", not is_enabled)
+
+    def _clear_cache():
+        """Clears the TTS cache directory."""
+        cache_dir = "tts_cache"
+        if os.path.exists(cache_dir):
+            try:
+                shutil.rmtree(cache_dir)
+                print(Fore.GREEN + "[SYSTEM] TTS cache cleared.")
+            except Exception as e:
+                print(Fore.RED + f"[SYSTEM] Failed to clear TTS cache: {e}")
+        else:
+            print(Fore.YELLOW + "[SYSTEM] No TTS cache found to clear.")
 
     # Mapping of command strings to their respective functions
     cmds = {

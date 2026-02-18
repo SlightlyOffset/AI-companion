@@ -11,7 +11,7 @@ CACHE_DIR = "cache"
 
 def _ensure_cache_dir(directory):
     if not os.path.exists(directory):
-        os.makedirs(directory)
+        os.makedirs(directory, exist_ok=True)
 
 def _get_hash(text, voice, engine):
     """Generates a unique MD5 hash for the given TTS parameters."""

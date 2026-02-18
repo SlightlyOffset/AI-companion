@@ -46,18 +46,18 @@ tts_text_queue = queue.Queue()
 audio_file_queue = queue.Queue()
 
 def tts_generation_worker():
-    """Worker thread that converts text to MP3. Expects (text, voice, engine, clone_ref) tuples."""
+    """Worker thread that converts text to MP3. Expects (text, voice, engine, clone_ref, language) tuples."""
     while True:
         data = tts_text_queue.get()
         if data is None:
             audio_file_queue.put(None)
             break
 
-        text, voice, engine, clone_ref = data
+        text, voice, engine, clone_ref, language = data
         temp_dir = os.environ.get("TEMP", "/tmp")
         temp_filename = os.path.join(temp_dir, f"tts_{time.time()}_{random.randint(1000,9999)}.mp3")
 
-        if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref):
+        if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref, language=language):
             audio_file_queue.put(temp_filename)
         tts_text_queue.task_done()
 
@@ -135,6 +135,7 @@ def run_app():
             char_voice = profile_data.get("preferred_tts_voice", None)
             char_engine = profile_data.get("tts_engine", "edge-tts")
             char_clone_ref = profile_data.get("voice_clone_ref", None)
+            char_language = profile_data.get("tts_language", "en")
             
             narrator_voice = get_setting("narration_tts_voice", "en-US-AndrewNeural")
             narrator_engine = "edge-tts"
@@ -178,16 +179,25 @@ def run_app():
                          getattr(Style, colors.get("label", "NORMAL").upper(), Style.NORMAL)
             narration_style = Fore.LIGHTBLACK_EX + Style.BRIGHT + "\033[3m"
 
+            engine_tag = f"[{char_engine.upper()}] " if get_setting("show_tts_engine", True) else ""
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
-            sys.stdout.write(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.RESET_ALL)
+            sys.stdout.write(Fore.CYAN + engine_tag + Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.RESET_ALL)
+            sys.stdout.write(Style.DIM + "thinking..." + Style.RESET_ALL)
             sys.stdout.flush()
 
             full_response = ""
             current_buffer = ""
             is_currently_narrating = False # Tracks state for terminal printing
             tts_in_narration = False      # Tracks state for voice selection
+            first_chunk = True
 
             for chunk in get_respond_stream(user_input, profile_data, should_obey=should_obey, profile_path=character_profile_path):
+                if first_chunk:
+                    # Clear "thinking..." (11 chars)
+                    sys.stdout.write("\b" * 11 + " " * 11 + "\b" * 11)
+                    sys.stdout.flush()
+                    first_chunk = False
+
                 for char in chunk:
                     if char == '*':
                         is_currently_narrating = not is_currently_narrating
@@ -216,6 +226,7 @@ def run_app():
                         voice = narrator_voice if tts_in_narration or contains_asterisk else char_voice
                         engine = narrator_engine if tts_in_narration or contains_asterisk else char_engine
                         clone_ref = None if tts_in_narration or contains_asterisk else char_clone_ref
+                        language = "en" if tts_in_narration or contains_asterisk else char_language
 
                         # Update the state for the next segment if we hit an asterisk
                         if contains_asterisk:
@@ -223,7 +234,7 @@ def run_app():
 
                         cleaned = clean_text_for_tts(segment, speak_narration=True)
                         if cleaned:
-                            tts_text_queue.put((cleaned, voice, engine, clone_ref))
+                            tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
                         last_point = point
                     current_buffer = current_buffer[last_point:]
 
@@ -232,9 +243,10 @@ def run_app():
                 voice = narrator_voice if tts_in_narration or '*' in clean_leftover else char_voice
                 engine = narrator_engine if tts_in_narration or '*' in clean_leftover else char_engine
                 clone_ref = None if tts_in_narration or '*' in clean_leftover else char_clone_ref
+                language = "en" if tts_in_narration or '*' in clean_leftover else char_language
                 cleaned = clean_text_for_tts(clean_leftover, speak_narration=True)
                 if cleaned:
-                    tts_text_queue.put((cleaned, voice, engine, clone_ref))
+                    tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
 
             sys.stdout.write(Style.RESET_ALL + "\n")
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)

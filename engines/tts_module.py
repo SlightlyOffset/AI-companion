@@ -95,8 +95,10 @@ async def generate_edge_tts(text, filename, voice="en-GB-SoniaNeural"):
     await communicate.save(filename)
 
 def play_audio_windows(filename):
-    """Plays audio via VBScript on Windows."""
+    """Plays audio via VBScript or fallback on Windows."""
     abspath = os.path.abspath(filename)
+    
+    # Method 1: VBScript (Hidden playback)
     vbs_path = os.path.join(os.environ["TEMP"], "play_sound.vbs")
     vbs_content = f"""
     Set Sound = CreateObject("WMPlayer.OCX")
@@ -107,11 +109,20 @@ def play_audio_windows(filename):
     loop
     wscript.sleep (Sound.currentmedia.duration * 1000)
     """
-    with open(vbs_path, "w") as f: f.write(vbs_content)
-    subprocess.run(["wscript.exe", vbs_path], capture_output=True)
-    if os.path.exists(vbs_path): os.remove(vbs_path)
+    try:
+        with open(vbs_path, "w") as f: f.write(vbs_content)
+        subprocess.run(["wscript.exe", vbs_path], capture_output=True, timeout=30)
+    except:
+        # Method 2: os.startfile (Fallback)
+        try:
+            os.startfile(abspath)
+            time.sleep(2)
+        except Exception as e:
+            print(Fore.RED + f"[PLAY ERROR] {e}")
+    finally:
+        if os.path.exists(vbs_path): os.remove(vbs_path)
 
-def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None):
+def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None, language="en"):
     """
     Converts text to an MP3 or WAV file.
     Supports edge-tts (default) and XTTS.
@@ -125,7 +136,7 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
     cache_voice = voice if voice else "default"
     cache_key_engine = engine
     if engine == "xtts" and clone_ref:
-        cache_key_engine = f"xtts_{os.path.basename(clone_ref)}"
+        cache_key_engine = f"xtts_{os.path.basename(clone_ref)}_{language}"
     
     # Check if we have this cached
     cached_path = get_cache_path(cleaned_text, cache_voice, cache_key_engine)
@@ -145,7 +156,7 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
                 # Ensure filename ends with .wav for XTTS if it doesn't already
                 xtts_filename = filename if filename.endswith(".wav") else filename.replace(".mp3", ".wav")
                 worker = XTTSWorker()
-                if worker.generate(cleaned_text, xtts_filename, clone_ref):
+                if worker.generate(cleaned_text, xtts_filename, clone_ref, language=language):
                     # Save to cache
                     with open(xtts_filename, "rb") as f:
                         save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
@@ -195,13 +206,13 @@ def play_audio(filename):
             try: os.remove(filename)
             except: pass
 
-def speak(text, pref_tts: str | None = None, engine="edge-tts", clone_ref=None):
+def speak(text, pref_tts: str | None = None, engine="edge-tts", clone_ref=None, language="en"):
     """High-level synchronous speak function."""
     if not get_setting("tts_enabled", True):
         return
 
     filename = "temp_speak.mp3"
-    if generate_audio(text, filename, voice=pref_tts, engine=engine, clone_ref=clone_ref):
+    if generate_audio(text, filename, voice=pref_tts, engine=engine, clone_ref=clone_ref, language=language):
         play_audio(filename)
     else:
         # Fallback to pyttsx3 if edge-tts/xtts failed and offline engine available
