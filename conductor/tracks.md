@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Recap Viewport Implementation**
+- [x] **Track: Recap Viewport Implementation**
   *Link: [./tracks/recap_viewport_20260218/](./tracks/recap_viewport_20260218/)*
