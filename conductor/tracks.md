@@ -14,10 +14,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: XTTS v2 implementation**
-  *Link: [./tracks/xtts_v2_20260218/](./tracks/xtts_v2_20260218/)*
-
----
-
 - [ ] **Track: Improving on setting and config scope, like suppressing error message or properly toggling TTS**
 *Link: [./tracks/config_scope_20260218/](./tracks/config_scope_20260218/)*
