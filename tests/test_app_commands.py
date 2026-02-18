@@ -1,6 +1,7 @@
 import unittest
 import os
 import sys
+import re # Import re
 from unittest.mock import patch, MagicMock
 from io import StringIO
 from colorama import Fore, Style # Import Fore and Style
@@ -9,9 +10,14 @@ from colorama import Fore, Style # Import Fore and Style
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import app_commands and its dependencies (memory_manager, get_setting) at the top level
-from engines.app_commands import app_commands
+from engines.app_commands import app_commands 
 from engines.memory_v2 import memory_manager
 from engines.config import get_setting
+
+def strip_ansi(text):
+    """Helper to strip ANSI escape codes for testing."""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
 
 class TestAppCommands(unittest.TestCase):
 
@@ -49,7 +55,7 @@ class TestAppCommands(unittest.TestCase):
         
         result = app_commands("//history")
         self.assertTrue(result) # Command was handled
-        self.assertIn("[SYSTEM] No character profile active. Cannot display history.", mock_stdout.getvalue())
+        self.assertIn("[SYSTEM] No character profile active. Cannot display history.", strip_ansi(mock_stdout.getvalue()))
 
     @patch('sys.stdout', new_callable=StringIO)
     def test_history_no_history_found(self, mock_stdout):
@@ -58,7 +64,7 @@ class TestAppCommands(unittest.TestCase):
 
         result = app_commands("//history")
         self.assertTrue(result)
-        self.assertIn("[SYSTEM] No history found for the current profile.", mock_stdout.getvalue())
+        self.assertIn("[SYSTEM] No history found for the current profile.", strip_ansi(mock_stdout.getvalue()))
         self.mock_memory_manager.load_history.assert_called_with("TestProfile", limit=15)
 
     @patch('sys.stdout', new_callable=StringIO)
@@ -73,7 +79,7 @@ class TestAppCommands(unittest.TestCase):
         self.assertTrue(result)
         self.mock_memory_manager.load_history.assert_called_with("TestProfile", limit=15)
         
-        output = mock_stdout.getvalue()
+        output = strip_ansi(mock_stdout.getvalue())
         self.assertIn("=== Past Conversation ===", output)
         self.assertIn("User: Hello there!", output)
         self.assertIn("Assistant: Hi, how can I help?", output)
@@ -89,9 +95,10 @@ class TestAppCommands(unittest.TestCase):
         result = app_commands("//recap")
         self.assertTrue(result)
         self.mock_memory_manager.load_history.assert_called_with("TestProfile", limit=15)
-        output = mock_stdout.getvalue()
+        output = strip_ansi(mock_stdout.getvalue())
         self.assertIn("User: Hello there!", output)
 
 
 if __name__ == "__main__":
     unittest.main()
+

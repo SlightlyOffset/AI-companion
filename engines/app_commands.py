@@ -2,19 +2,22 @@
 Internal CLI command handler for the application.
 Processes commands starting with '//' to manage settings, history, and app state.
 """
-
 import sys
 import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import re
 import json
 from colorama import Fore, init, Style
 from engines.config import update_setting, get_setting
 from engines.utilities import pick_history
 from engines.utilities import pick_profile
-from engines.utilities import pick_user_profile
+from engines.utilities import pick_user_profile, render_historical_message # Import render_historical_message
 from engines.memory_v2 import memory_manager # Import memory_manager
 
 # Initialize colorama
 init(autoreset=True)
+
 
 # Path to conversation history files
 HISTORY_PATH = "history/"
@@ -88,6 +91,7 @@ def app_commands(ops: str):
         """Wipes ALL history files in the history directory."""
         confirm = input(Fore.RED + "Are you sure you want to reset ALL history files? (y/n): ").strip().lower()
         if confirm == 'y':
+            from engines.memory_v2 import memory_manager
             for filename in os.listdir(HISTORY_PATH):
                 if filename.endswith(".json"):
                     profile_name = filename.replace("_history.json", "")
@@ -152,13 +156,26 @@ def app_commands(ops: str):
         # Extract character name from the profile path stored in settings
         profile_name = os.path.basename(current_profile_setting).replace(".json", "")
         
+        # Try to get display names
+        ch_name = "Assistant"
+        user_name = "User"
+        
+        try:
+            with open(os.path.join("profiles", current_profile_setting), "r", encoding="UTF-8") as f:
+                ch_name = json.load(f).get("name", "Assistant")
+            
+            user_profile_filename = get_setting("current_user_profile")
+            if user_profile_filename:
+                with open(os.path.join("user_profiles", user_profile_filename), "r", encoding="UTF-8") as f:
+                    user_name = json.load(f).get("name", "User")
+        except:
+            pass
+
         recap_messages = memory_manager.load_history(profile_name, limit=15)
         if recap_messages:
             print(Fore.WHITE + Style.DIM + "\n=== Past Conversation ===" + Style.RESET_ALL)
             for msg in recap_messages:
-                role = msg.get("role", "Unknown").capitalize()
-                content = msg.get("content", "")
-                print(Fore.LIGHTBLACK_EX + f"{role}: {content}" + Style.RESET_ALL)
+                render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
             print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
         else:
             print(Fore.YELLOW + "[SYSTEM] No history found for the current profile." + Style.RESET_ALL)
@@ -184,6 +201,9 @@ def app_commands(ops: str):
         "//recap": _history,
     }
 
+    pattern = re.match(r'^/+', ops.strip().lower())
+    if pattern:
+        ops = "//" + ops[pattern.end():]
     action = cmds.get(ops.lower())
     if action:
         action()

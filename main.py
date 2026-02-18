@@ -19,7 +19,7 @@ from colorama import init, Fore, Style
 # Local imports
 from engines.actions import execute_command
 from engines.utilities import is_command
-from engines.utilities import pick_profile, pick_user_profile
+from engines.utilities import pick_profile, pick_user_profile, render_historical_message
 from engines.app_commands import app_commands, RestartRequested
 from engines.responses import get_respond_stream, apply_mood_decay
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
@@ -118,10 +118,7 @@ def run_app():
     if recap_messages:
         print(Fore.WHITE + Style.DIM + "=== Past Conversation ===" + Style.RESET_ALL)
         for msg in recap_messages:
-            role = msg.get("role", "Unknown").capitalize()
-            content = msg.get("content", "")
-            # Basic styling for recap messages - will be refined in Phase 3
-            print(Fore.LIGHTBLACK_EX + f"{role}: {content}" + Style.RESET_ALL)
+            render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
         print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
     # --- End Automatic Recap Display ---
 
@@ -147,7 +144,7 @@ def run_app():
                 gen_thread.join(); play_thread.join()
                 continue
 
-            if user_input.startswith("//"):
+            if re.match(r'^/+', user_input.strip().lower()):
                 if app_commands(user_input):
                     tts_text_queue.put(None)
                     gen_thread.join(); play_thread.join()

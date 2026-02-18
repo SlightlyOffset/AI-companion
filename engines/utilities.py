@@ -127,3 +127,28 @@ def pick_history() -> str:
         except KeyboardInterrupt:
             return None
 
+def render_historical_message(role: str, content: str, user_name: str = "User", char_name: str = "Assistant"):
+    """
+    Renders a single historical message with proper styling and color.
+    """
+    display_role = user_name if role == "user" else char_name
+    
+    # Base dimmed style for history
+    base_style = Fore.LIGHTBLACK_EX
+    narration_style = Fore.LIGHTBLACK_EX + Style.DIM + "\033[3m" # Italics + Dimmed
+    
+    # Start with role label
+    output = f"{base_style}{display_role}: "
+    
+    # Process narration tokens (*)
+    parts = content.split('*')
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # Inside asterisks
+            output += f"{narration_style}{part}{base_style}"
+        else:
+            # Outside asterisks
+            output += f"{base_style}{part}"
+            
+    print(output + Style.RESET_ALL)
+
