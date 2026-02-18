@@ -12,7 +12,7 @@ This plan outlines the steps to implement a "recap" feature that loads past conv
     - [x] Implement `is_recent_interaction(profile_name, hours=24)` method
 - [x] Task: Conductor - User Manual Verification 'History Retrieval Enhancements' (Protocol in workflow.md)
 
-## Phase 2: Terminal Recap Integration
+## Phase 2: Terminal Recap Integration [checkpoint: 0307b06]
 
 - [x] Task: Integrate automatic recap into `main.py` startup 28c40a0
     - [x] Write tests for displaying 3-5 messages on startup (mocking `print`)
@@ -22,7 +22,7 @@ This plan outlines the steps to implement a "recap" feature that loads past conv
     - [x] Write tests for the `//history` command execution and output
     - [x] Add `//history` and `//recap` to the `cmds` dictionary in `engines/app_commands.py`
     - [x] The command should fetch the last 15 messages and display them with the same styling as the automatic recap
-- [ ] Task: Conductor - User Manual Verification 'Terminal Recap Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Terminal Recap Integration' (Protocol in workflow.md) 94c2589
 
 ## Phase 3: UI/UX Refinement
 
