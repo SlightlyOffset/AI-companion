@@ -57,6 +57,16 @@ class TestHistoryManager(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "ProfileA_history.json")))
         self.assertTrue(os.path.exists(os.path.join(self.test_dir, "ProfileB_history.json")))
 
+    def test_special_characters_in_filename(self):
+        profile = "Ria(polite)-Variant_1"
+        self.manager.save_history(profile, [{"role": "user", "content": "test"}])
+        
+        expected_path = os.path.join(self.test_dir, "Ria(polite)-Variant_1_history.json")
+        self.assertTrue(os.path.exists(expected_path))
+        
+        loaded = self.manager.load_history(profile)
+        self.assertEqual(len(loaded), 1)
+
     def test_is_recent_interaction(self):
         profile = "RecentProfile"
         # Save history (sets timestamp to now)
