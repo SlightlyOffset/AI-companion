@@ -189,7 +189,7 @@ def app_commands(ops: str):
 
     def _clear_cache():
         """Clears the TTS cache directory."""
-        cache_dir = "tts_cache"
+        cache_dir = "cache"
         if os.path.exists(cache_dir):
             try:
                 shutil.rmtree(cache_dir)
@@ -219,6 +219,7 @@ def app_commands(ops: str):
         "//show_settings": _show_settings,
         "//history": _history,
         "//recap": _history,
+        "//clear_cache": _clear_cache,
     }
 
     pattern = re.match(r'^/+', ops.strip().lower())
