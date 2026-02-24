@@ -1,5 +1,6 @@
 {
     "remote_llm_url": null,
+    "remote_tts_url": null,
     "execute_command": false,
     "tts_enabled": true,
     "default_tts_voice": "en-GB-SoniaNeural",

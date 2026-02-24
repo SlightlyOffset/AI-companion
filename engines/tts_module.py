@@ -60,9 +60,14 @@ def clean_text_for_tts(text: str, speak_narration: bool = True) -> str:
 
     # Final cleanup of leftover stray symbols and normalization
     cleaned = cleaned.replace('*', '').replace('[', '').replace(']', '')
+    
+    # Strip any stray file extensions that might have leaked in
+    cleaned = re.sub(r'\.(wav|mp3|ogg|wav)\b', '', cleaned, flags=re.IGNORECASE)
+    
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-    if all(char in ".,!?;:- " for char in cleaned):
+    # If the text is only punctuation/symbols, it's effectively empty for TTS
+    if not any(c.isalnum() for c in cleaned):
         return ""
 
     return cleaned
@@ -99,28 +104,49 @@ def play_audio_windows(filename):
     abspath = os.path.abspath(filename)
     
     # Method 1: VBScript (Hidden playback)
-    vbs_path = os.path.join(os.environ["TEMP"], "play_sound.vbs")
+    vbs_path = os.path.join(os.environ["TEMP"], f"play_sound_{int(time.time())}.vbs")
     vbs_content = f"""
+    On Error Resume Next
     Set Sound = CreateObject("WMPlayer.OCX")
+    If Err.Number <> 0 Then
+        WScript.Quit 1
+    End If
+    Sound.settings.volume = 100
     Sound.URL = "{abspath.replace('\\', '\\\\')}"
     Sound.Controls.play
-    do while Sound.currentmedia.duration = 0
-        wscript.sleep 5
+    
+    ' Wait for media to load (max 5 seconds)
+    count = 0
+    do while Sound.currentmedia.duration = 0 and count < 100
+        wscript.sleep 50
+        count = count + 1
     loop
-    wscript.sleep (Sound.currentmedia.duration * 1000)
+    
+    ' Play until finished (with a safety timeout)
+    if Sound.currentmedia.duration > 0 then
+        wscript.sleep (Sound.currentmedia.duration * 1000)
+    else
+        ' Fallback wait if duration is somehow not reported but it's playing
+        wscript.sleep 2000 
+    end if
     """
     try:
         with open(vbs_path, "w") as f: f.write(vbs_content)
-        subprocess.run(["wscript.exe", vbs_path], capture_output=True, timeout=30)
+        # We use wscript.exe to run it. If it fails, subprocess will go to except.
+        result = subprocess.run(["wscript.exe", vbs_path], capture_output=True, timeout=35)
+        if result.returncode != 0:
+            raise Exception("VBScript failed")
     except:
         # Method 2: os.startfile (Fallback)
         try:
             os.startfile(abspath)
-            time.sleep(2)
+            time.sleep(2) # Give it some time to start the player
         except Exception as e:
             print(Fore.RED + f"[PLAY ERROR] {e}")
     finally:
-        if os.path.exists(vbs_path): os.remove(vbs_path)
+        if os.path.exists(vbs_path):
+            try: os.remove(vbs_path)
+            except: pass
 
 def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None, language="en"):
     """
@@ -130,6 +156,9 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
     cleaned_text = clean_text_for_tts(text, speak_narration=True)
     if not cleaned_text:
         return False
+    
+    if get_setting("debug_mode", False):
+        print(Fore.MAGENTA + f"[DEBUG] Final TTS Text: '{cleaned_text}'" + Fore.RESET)
 
     # --- Cache Check ---
     # Determine cache key parameters
@@ -151,6 +180,8 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
 
     # 1. Attempt XTTS if requested
     if engine == "xtts":
+        xtts_success = False
+        # Try Local first
         if is_xtts_supported() and clone_ref:
             try:
                 # Ensure filename ends with .wav for XTTS if it doesn't already
@@ -160,11 +191,35 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
                     # Save to cache
                     with open(xtts_filename, "rb") as f:
                         save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
-                    return True
+                    xtts_success = True
             except Exception as e:
-                print(Fore.YELLOW + f"[XTTS FALLBACK] Error: {e}. Switching to Edge-TTS." + Fore.RESET)
+                print(Fore.YELLOW + f"[XTTS LOCAL ERROR] {e}" + Fore.RESET)
+
+        # Try Remote if Local failed or not available
+        if not xtts_success and clone_ref and get_setting("remote_tts_url"):
+            from engines.xtts_remote import generate_remote_xtts
+            try:
+                # Use .wav for remote generation to ensure compatibility, then rename back
+                xtts_filename = filename if filename.endswith(".wav") else filename.replace(".mp3", ".wav")
+                if generate_remote_xtts(cleaned_text, xtts_filename, clone_ref, language=language):
+                    # Save to cache
+                    if os.path.exists(xtts_filename):
+                        with open(xtts_filename, "rb") as f:
+                            save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
+                        xtts_success = True
+            except Exception as e:
+                print(Fore.YELLOW + f"[XTTS REMOTE ERROR] {e}" + Fore.RESET)
+
+        if xtts_success:
+            # IMPORTANT: Ensure the file exists at the EXACT path requested by the caller
+            if 'xtts_filename' in locals() and xtts_filename != filename:
+                if os.path.exists(xtts_filename):
+                    if os.path.exists(filename): os.remove(filename)
+                    os.rename(xtts_filename, filename)
+            return True
         
         # Fallback to edge-tts if XTTS failed or not supported
+        print(Fore.YELLOW + "[XTTS FALLBACK] Switching to Edge-TTS." + Fore.RESET)
         engine = "edge-tts"
 
     # 2. Attempt Edge-TTS

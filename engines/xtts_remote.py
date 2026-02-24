@@ -31,6 +31,9 @@ def generate_remote_xtts(text, output_path, speaker_wav, language="en"):
                 "language": language
             }
             
+            if get_setting("debug_mode", False):
+                print(Fore.MAGENTA + f"[DEBUG] Sending text to XTTS: {text}" + Fore.RESET)
+
             print(Fore.CYAN + f"[XTTS REMOTE] Requesting audio from Colab bridge..." + Fore.RESET)
             response = requests.post(endpoint, data=data, files=files, timeout=60)
             

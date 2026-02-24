@@ -9,14 +9,14 @@ import os
 def load_user_profile():
     """
     Loads the currently selected user profile from the user_profiles directory.
-    
+
     Returns:
         dict: The user profile data, or None if loading fails.
     """
     from engines.config import get_setting
     user_filename = get_setting("current_user_profile", "Manganese.json")
     user_path = os.path.join("user_profiles", user_filename)
-    
+
     if os.path.exists(user_path):
         try:
             with open(user_path, "r", encoding="UTF-8") as f:
@@ -29,7 +29,7 @@ def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_re
     """
     Constructs the master system prompt for the LLM.
     Combines character backstory, mannerisms, user details, and behavioral rules.
-    
+
     Args:
         profile (dict): The active companion's profile data.
         rel_score (int): Current relationship score (-100 to 100).
@@ -37,19 +37,22 @@ def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_re
         action_req (str): Instruction on whether to obey or refuse requests.
         tone_mod (str): Instruction on the tone of the response.
         system_extra_info (str): Temporary context/notes for this specific turn.
-        
+
     Returns:
         str: The full system instruction string.
     """
     base_prompt = profile.get("system_prompt", "")
-    
+
     # 1. Companion Character Details
     backstory = profile.get("backstory", "Unknown.")
     mannerisms = ", ".join(profile.get("rp_mannerisms", []))
     info = profile.get("character_info", {})
-    
+
     char_details = f"""
 [CHARACTER PROFILE]
+Name: {profile.get('name', 'Unknown')}
+Alternate Names: {profile.get('alt_names', 'None')}
+Personality Type: {profile.get('personality_type', 'Unknown')}
 Backstory: {backstory}
 Age: {info.get('age', 'Unknown')}
 Appearance: {info.get('appearance', 'Unknown')}
@@ -89,7 +92,7 @@ Tone: {tone_mod}
     rule = """
 [BEHAVIOR RULES]
 1. STAY IN CHARACTER at all times.
-2. DIALOGUE vs ACTION: Always put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue. 
+2. DIALOGUE vs ACTION: Always put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue.
    - Good: *She smiles.* \n "Hello there."
    - Bad: *She smiles.* "Hello there."
 3. MANNERISMS: Naturally weave your listed mannerisms into your actions.
@@ -101,5 +104,5 @@ Tone: {tone_mod}
         system_content += f"Note: {system_extra_info}\n"
 
     system_content += f"{rule}"
-    
+
     return system_content

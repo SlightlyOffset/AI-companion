@@ -45,3 +45,11 @@
 - [ ] Finalize error handling for offline/online transitions
 - [ ] Implement Speech-to-Text (STT) for full voice control
 - [ ] Integrate Chafa to display character portraits in a separate terminal window
+
+## Phase 5: Visual Representation & Live2D
+
+- [ ] Implement a GUI window for character display (PyQt6 or similar)
+- [ ] **Character Expressions**: Map mood scores and sentiment to sprite changes (e.g., Happy, Neutral, Angry)
+- [ ] **Live2D Integration**: Support Live2D models for high-fidelity animation
+- [ ] **Lip-Sync**: Synchronize character mouth movements with TTS audio output
+- [ ] **Idle Animations**: Implement breathing or blinking cycles for increased immersion

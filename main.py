@@ -4,6 +4,7 @@ Handles the interaction loop, multi-threaded TTS pipeline, and UI rendering.
 """
 
 # Standard library imports
+from datetime import datetime
 import json
 import threading
 import random
@@ -100,6 +101,14 @@ def startup_recap(history_profile_name, user_name, ch_name):
             render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
         print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
 
+def get_text_style(profile_data):
+    colors = profile_data.get("colors", {})
+    char_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE) + \
+                    getattr(Style, colors.get("label", "NORMAL").upper(), Style.NORMAL)
+    narration_style = Fore.LIGHTBLACK_EX + Style.BRIGHT + "\033[3m"
+    return char_style, narration_style
+
+
 def run_app():
     character_profile_path = pick_profile()
     if not character_profile_path:
@@ -125,6 +134,35 @@ def run_app():
     if get_setting("auto_recap_on_start", False):
         startup_recap(history_profile_name, user_name, ch_name)
 
+    had_history = False
+    if memory_manager.get_full_data(history_profile_name).get("history"):
+        had_history = True
+
+    if not had_history:
+        char_style, narration_style = get_text_style(character_profile)
+
+        print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
+        # Show starter message if no history
+        starter_messages = character_profile.get("starter_messages", [])
+        random.shuffle(starter_messages)
+        if starter_messages:
+            is_currently_narrating = False
+            sys.stdout.write(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.RESET_ALL)
+            for char in starter_messages[0]:
+                if char == '*':
+                    is_currently_narrating = not is_currently_narrating
+                    sys.stdout.write(narration_style if is_currently_narrating else char_style)
+                    # sys.stdout.write(char) # Optionally print the asterisk if you want a visual toggle in the terminal
+                else:
+                    sys.stdout.write((narration_style if is_currently_narrating else char_style) + char)
+            sys.stdout.write("\n")
+            print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
+            sys.stdout.flush()
+
+        memory_manager.save_history(history_profile_name, [{"role": "assistant",
+                                                            "content": starter_messages[0]}],
+                                    mood_score=character_profile.get("relationship_score", 0))
+
     # Main interaction loop
     while True:
         try:
@@ -136,7 +174,7 @@ def run_app():
             char_engine = profile_data.get("tts_engine", "edge-tts")
             char_clone_ref = profile_data.get("voice_clone_ref", None)
             char_language = profile_data.get("tts_language", "en")
-            
+
             narrator_voice = get_setting("narration_tts_voice", "en-US-AndrewNeural")
             narrator_engine = "edge-tts"
 
@@ -174,10 +212,8 @@ def run_app():
                     _, message = execute_command(user_input)
                     print(Fore.GREEN + f"[SYSTEM] {message}" + Style.RESET_ALL)
 
-            colors = profile_data.get("colors", {})
-            char_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE) + \
-                         getattr(Style, colors.get("label", "NORMAL").upper(), Style.NORMAL)
-            narration_style = Fore.LIGHTBLACK_EX + Style.BRIGHT + "\033[3m"
+            # Get text styles for terminal output
+            char_style, narration_style = get_text_style(profile_data)
 
             engine_tag = f"[{char_engine.upper()}] " if get_setting("show_tts_engine", True) else ""
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)

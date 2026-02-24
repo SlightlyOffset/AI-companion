@@ -4,6 +4,7 @@ Handles per-profile history storage, metadata (timestamps, mood), and history tr
 """
 
 import json
+import re
 import os
 from datetime import datetime
 
@@ -22,14 +23,14 @@ class HistoryManager:
 
     def _get_filename(self, profile_name: str) -> str:
         """Generates a safe filename for the history JSON file."""
-        # Allow alphanumeric, spaces, underscores, dashes, and parentheses
-        safe_name = "".join(c for c in profile_name if c.isalnum() or c in (' ', '_', '-', '(', ')')).rstrip()
+        # Allow alphanumeric, spaces, underscores, dashes
+        safe_name = "".join(c for c in profile_name if c.isalnum() or c in (' ', '_', '-')).rstrip()
         return os.path.join(self.history_dir, f"{safe_name}_history.json")
 
     def save_history(self, profile_name: str, history: list, mood_score: int = 0):
         """
         Saves history to a JSON file with metadata.
-        
+
         Args:
             profile_name (str): The name of the character.
             history (list): List of message dictionaries.
@@ -62,7 +63,7 @@ class HistoryManager:
         try:
             with open(filename, "r", encoding="UTF-8") as f:
                 data = json.load(f)
-                
+
                 # Handle old format (list)
                 if isinstance(data, list):
                     # Try to find the timestamp in the last message (legacy behavior)
@@ -71,12 +72,12 @@ class HistoryManager:
                         if msg.get("role") == "system" and "Timestamp: " in msg.get("content", ""):
                             last_time = msg["content"].replace("Timestamp: ", "").strip()
                             break
-                    
+
                     return {
                         "metadata": {"last_interaction": last_time},
                         "history": [m for m in data if m.get("role") != "system"]
                     }
-                
+
                 return data
         except (json.JSONDecodeError, Exception):
             return {"metadata": {}, "history": []}
@@ -84,11 +85,11 @@ class HistoryManager:
     def load_history(self, profile_name: str, limit: int = None) -> list:
         """
         Loads history list from a JSON file, optionally truncating it.
-        
+
         Args:
             profile_name (str): The name of the character.
             limit (int, optional): The maximum number of messages to return.
-            
+
         Returns:
             list: List of loaded messages.
         """
@@ -120,7 +121,7 @@ class HistoryManager:
         last_time = self.get_last_timestamp(profile_name)
         if not last_time:
             return False
-        
+
         now = datetime.now()
         diff = now - last_time
         return (diff.total_seconds() / 3600) <= hours
