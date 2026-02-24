@@ -102,12 +102,12 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     name = profile.get("name")
     model = profile.get("llm_model", get_setting("default_llm_model", "llama3"))
     remote_url = get_setting("remote_llm_url")
-    
+
     if not history_profile_name:
         history_profile_name = name # Fallback to display name
 
     # Load history, filtering out internal system timestamps
-    limit = get_setting("history_limit", 15)
+    limit = get_setting("memory_limit", 15)
     history = memory_manager.load_history(history_profile_name, limit=limit)
 
     # Determine relationship label and instructions

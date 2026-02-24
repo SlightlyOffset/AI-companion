@@ -127,19 +127,20 @@ def pick_history() -> str:
         except KeyboardInterrupt:
             return None
 
-def render_historical_message(role: str, content: str, user_name: str = "User", char_name: str = "Assistant"):
+def render_historical_message(role: str, content: str, user_name: str = "User", char_name: str = "Assistant", char_color=None):
     """
     Renders a single historical message with proper styling and color.
+    char_color: a colorama Fore color string for the character's dialogue (from profile colors.text).
     """
     display_role = user_name if role == "user" else char_name
-    
-    # Base dimmed style for history
-    base_style = Fore.LIGHTBLACK_EX
+
+    # Use the character's profile color for assistant messages; dim grey for user lines
+    base_style = (char_color if char_color is not None else Fore.LIGHTBLACK_EX) if role != "user" else Fore.LIGHTBLACK_EX
     narration_style = Fore.LIGHTBLACK_EX + Style.DIM + "\033[3m" # Italics + Dimmed
-    
+
     # Start with role label
     output = f"{base_style}{display_role}: "
-    
+
     # Process narration tokens (*)
     parts = content.split('*')
     for i, part in enumerate(parts):
@@ -149,6 +150,12 @@ def render_historical_message(role: str, content: str, user_name: str = "User", 
         else:
             # Outside asterisks
             output += f"{base_style}{part}"
-            
+
     print(output + Style.RESET_ALL)
 
+def get_text_style(profile_data):
+    colors = profile_data.get("colors", {})
+    char_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE) + \
+                    getattr(Style, colors.get("label", "NORMAL").upper(), Style.NORMAL)
+    narration_style = Fore.LIGHTBLACK_EX + Style.BRIGHT + "\033[3m"
+    return char_style, narration_style

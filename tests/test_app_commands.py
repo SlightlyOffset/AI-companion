@@ -10,7 +10,7 @@ from colorama import Fore, Style # Import Fore and Style
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import app_commands and its dependencies (memory_manager, get_setting) at the top level
-from engines.app_commands import app_commands 
+from engines.app_commands import app_commands, RestartRequested
 from engines.memory_v2 import memory_manager
 from engines.config import get_setting
 
@@ -84,6 +84,16 @@ class TestAppCommands(unittest.TestCase):
         self.assertIn("User: Hello there!", output)
         self.assertIn("Assistant: Hi, how can I help?", output)
         self.assertIn("=========================", output)
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_restart_raises_and_prints_message(self, mock_stdout):
+        with self.assertRaises(RestartRequested):
+            app_commands("//restart")
+        output = strip_ansi(mock_stdout.getvalue())
+        self.assertIn("[SYSTEM] Restarting application...", output)
+        # Ensure no extra leftover lines bleed in after the raise
+        lines = [l for l in output.splitlines() if l.strip()]
+        self.assertEqual(len(lines), 1)
 
     @patch('sys.stdout', new_callable=StringIO)
     def test_recap_alias_works(self, mock_stdout):

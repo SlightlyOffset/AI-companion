@@ -85,6 +85,8 @@ def app_commands(ops: str):
             profile_name = os.path.basename(history_path).replace("_history.json", "")
             memory_manager.save_history(profile_name, [])
             print(Fore.GREEN + "[SYSTEM] History cleared.")
+
+            # Reprint starter message if a profile is currently active
         else:
             print(Fore.RED + "[SYSTEM] No history selected.")
 
@@ -148,7 +150,7 @@ def app_commands(ops: str):
         print(Fore.GREEN + "[SYSTEM] Console will now clear at startup." if not is_enabled else Fore.RED + "[SYSTEM] Console will no longer clear at startup.")
         update_setting("clear_at_start", not is_enabled)
 
-    def _history():
+    def _history(limit: int = 15):
         """Displays the last 15 messages from the current character's history."""
         current_profile_setting = get_setting("current_character_profile")
         if not current_profile_setting:
@@ -161,10 +163,14 @@ def app_commands(ops: str):
         # Try to get display names
         ch_name = "Assistant"
         user_name = "User"
+        char_color = None
 
         try:
             with open(os.path.join("profiles", current_profile_setting), "r", encoding="UTF-8") as f:
-                ch_name = json.load(f).get("name", "Assistant")
+                profile_data = json.load(f)
+                ch_name = profile_data.get("name", "Assistant")
+                colors = profile_data.get("colors", {})
+                char_color = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE)
 
             user_profile_filename = get_setting("current_user_profile")
             if user_profile_filename:
@@ -173,11 +179,11 @@ def app_commands(ops: str):
         except:
             pass
 
-        recap_messages = memory_manager.load_history(profile_name, limit=15)
+        recap_messages = memory_manager.load_history(profile_name, limit=limit)
         if recap_messages:
             print(Fore.WHITE + Style.DIM + "\n=== Past Conversation ===" + Style.RESET_ALL)
             for msg in recap_messages:
-                render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
+                render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name, char_color=char_color)
             print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
         else:
             print(Fore.YELLOW + "[SYSTEM] No history found for the current profile." + Style.RESET_ALL)

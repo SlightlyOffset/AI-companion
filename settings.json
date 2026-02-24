@@ -8,7 +8,7 @@
     "narration_tts_voice": "en-US-AndrewNeural",
     "tts_rate": 170,
     "default_llm_model": "fluffy/l3-8b-stheno-v3.2",
-    "history_limit": 10,
+    "memory_limit": 10,
     "current_user_profile": "Manganese.json",
     "current_character_profile": "Astgenne.json",
     "debug_mode": false,

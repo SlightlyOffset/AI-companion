@@ -20,7 +20,7 @@ from colorama import init, Fore, Style
 # Local imports
 from engines.actions import execute_command
 from engines.utilities import is_command
-from engines.utilities import pick_profile, pick_user_profile, render_historical_message
+from engines.utilities import pick_profile, pick_user_profile, render_historical_message, get_text_style
 from engines.app_commands import app_commands, RestartRequested
 from engines.responses import get_respond_stream, apply_mood_decay
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
@@ -94,20 +94,9 @@ def get_smart_split_points(text):
     return points
 
 def startup_recap(history_profile_name, user_name, ch_name):
-    recap_messages = memory_manager.load_history(history_profile_name, limit=5)
+    recap_messages = memory_manager.load_history(history_profile_name, limit=1)
     if recap_messages:
-        print(Fore.WHITE + Style.DIM + "=== Past Conversation ===" + Style.RESET_ALL)
-        for msg in recap_messages:
-            render_historical_message(msg.get("role"), msg.get("content", ""), user_name=user_name, char_name=ch_name)
-        print(Fore.WHITE + Style.DIM + "=========================" + Style.RESET_ALL)
-
-def get_text_style(profile_data):
-    colors = profile_data.get("colors", {})
-    char_style = getattr(Fore, colors.get("text", "WHITE").upper(), Fore.WHITE) + \
-                    getattr(Style, colors.get("label", "NORMAL").upper(), Style.NORMAL)
-    narration_style = Fore.LIGHTBLACK_EX + Style.BRIGHT + "\033[3m"
-    return char_style, narration_style
-
+        app_commands("//history")
 
 def run_app():
     character_profile_path = pick_profile()
@@ -148,13 +137,13 @@ def run_app():
         if starter_messages:
             is_currently_narrating = False
             sys.stdout.write(Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.RESET_ALL)
-            for char in starter_messages[0]:
-                if char == '*':
+            parts = re.split(r'(\*)', starter_messages[0])
+            for i, part in enumerate(parts):
+                if part == '*':
                     is_currently_narrating = not is_currently_narrating
                     sys.stdout.write(narration_style if is_currently_narrating else char_style)
-                    # sys.stdout.write(char) # Optionally print the asterisk if you want a visual toggle in the terminal
                 else:
-                    sys.stdout.write((narration_style if is_currently_narrating else char_style) + char)
+                    sys.stdout.write((narration_style if is_currently_narrating else char_style) + part)
             sys.stdout.write("\n")
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
             sys.stdout.flush()
