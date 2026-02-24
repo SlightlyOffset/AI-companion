@@ -30,3 +30,6 @@ gha-creds-*.json
 # XTTS v2 and Audio Cache
 models/
 cache/
+
+# Generated/temporary audio files
+*.mp3
