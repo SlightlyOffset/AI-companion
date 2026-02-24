@@ -204,7 +204,15 @@ def run_app():
             # Get text styles for terminal output
             char_style, narration_style = get_text_style(profile_data)
 
-            engine_tag = f"[{char_engine.upper()}] " if get_setting("show_tts_engine", True) else ""
+            show_engine = get_setting("show_tts_engine", True)
+            # Note: Using False to match existing main.py logic, though other modules use True.
+            is_tts_enabled = get_setting("tts_enabled", False)
+
+            if show_engine:
+                engine_tag = f"[{char_engine.upper()}] " if is_tts_enabled else "[TTS DISABLED] "
+            else:
+                engine_tag = ""
+
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)
             sys.stdout.write(Fore.CYAN + engine_tag + Fore.MAGENTA + Style.BRIGHT + f"{ch_name}: " + Style.RESET_ALL)
             sys.stdout.write(Style.DIM + "thinking..." + Style.RESET_ALL)
@@ -215,6 +223,12 @@ def run_app():
             is_currently_narrating = False # Tracks state for terminal printing
             tts_in_narration = False      # Tracks state for voice selection
             first_chunk = True
+
+            # ------------------------------------------------
+            # Switch for TTS settings
+            speak_enable = get_setting("character_speak", False)
+            narration_enable = get_setting("speak_narration", False)
+            # ------------------------------------------------
 
             for chunk in get_respond_stream(user_input, profile_data, should_obey=should_obey, profile_path=character_profile_path):
                 if first_chunk:
@@ -238,45 +252,56 @@ def run_app():
                 # ---------------------------------------------------------------
                 # This entire block responsible for deciding when to send text to TTS, and which voice/engine to use.
                 # Check for split points
-                split_points = get_smart_split_points(current_buffer)
-                if split_points:
-                    last_point = 0
-                    for point in split_points:
-                        segment = current_buffer[last_point:point]
+                if get_setting("tts_enabled", False):
+                    split_points = get_smart_split_points(current_buffer)
+                    if split_points:
+                        last_point = 0
+                        for point in split_points:
+                            segment = current_buffer[last_point:point]
 
-                        # Detect if this segment contains a toggle
-                        contains_asterisk = '*' in segment
+                            # Voice selection uses state at START of segment (before any toggle).
+                            # Split points land after every *, so each segment has at most one *
+                            # at its end — the content before it belongs to the pre-toggle voice.
+                            voice = narrator_voice if tts_in_narration else char_voice
+                            engine = narrator_engine if tts_in_narration else char_engine
+                            clone_ref = None if tts_in_narration else char_clone_ref
+                            language = "en" if tts_in_narration else char_language
 
-                        # Important: Voice selection happens based on state BEFORE the toggle,
-                        # UNLESS the segment IS the narration itself.
-                        # If a segment is "*", it toggles the state for the NEXT segment.
-                        voice = narrator_voice if tts_in_narration or contains_asterisk else char_voice
-                        engine = narrator_engine if tts_in_narration or contains_asterisk else char_engine
-                        clone_ref = None if tts_in_narration or contains_asterisk else char_clone_ref
-                        language = "en" if tts_in_narration or contains_asterisk else char_language
+                            # Toggle AFTER voice selection so routing also uses pre-toggle state
+                            if '*' in segment:
+                                tts_in_narration = not tts_in_narration
 
-                        # Update the state for the next segment if we hit an asterisk
-                        if contains_asterisk:
-                            tts_in_narration = not tts_in_narration
-
-                        cleaned = clean_text_for_tts(segment, speak_narration=True)
-                        if cleaned:
-                            tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
-                        last_point = point
-                    current_buffer = current_buffer[last_point:]
+                            cleaned = clean_text_for_tts(segment, speak_narration=True)
+                            if cleaned:
+                                # Only narration enabled: send segments that were narration before toggle
+                                if not speak_enable and narration_enable and (voice == narrator_voice):
+                                    tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+                                # Only character speech enabled: send segments that were dialogue before toggle
+                                elif speak_enable and not narration_enable and (voice == char_voice):
+                                    tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+                                # Both enabled: send everything
+                                elif speak_enable and narration_enable:
+                                    tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+                            last_point = point
+                        current_buffer = current_buffer[last_point:]
                 # ---------------------------------------------------------------
 
             # After the full response is printed, check if there's any leftover text that hasn't been sent to TTS yet (e.g. after the last punctuation or asterisk)
-            if current_buffer.strip():
+            if get_setting("tts_enabled", False) and current_buffer.strip():
                 clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_buffer).strip()
-                voice = narrator_voice if tts_in_narration or '*' in clean_leftover else char_voice
-                engine = narrator_engine if tts_in_narration or '*' in clean_leftover else char_engine
-                clone_ref = None if tts_in_narration or '*' in clean_leftover else char_clone_ref
-                language = "en" if tts_in_narration or '*' in clean_leftover else char_language
+                # Use tts_in_narration state (consistent with the split-point loop above)
+                voice = narrator_voice if tts_in_narration else char_voice
+                engine = narrator_engine if tts_in_narration else char_engine
+                clone_ref = None if tts_in_narration else char_clone_ref
+                language = "en" if tts_in_narration else char_language
                 cleaned = clean_text_for_tts(clean_leftover, speak_narration=True)
                 if cleaned:
-                    tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
-                # Note: If the leftover buffer contains an asterisk, it will toggle the state for the next response, which is fine.
+                    if not speak_enable and narration_enable and (voice == narrator_voice):
+                        tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+                    elif speak_enable and not narration_enable and (voice == char_voice):
+                        tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+                    elif speak_enable and narration_enable:
+                        tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
 
 
             sys.stdout.write(Style.RESET_ALL + "\n")
