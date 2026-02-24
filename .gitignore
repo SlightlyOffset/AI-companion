@@ -19,6 +19,7 @@ ENV/
 
 # Private folders
 java_poc/
+character_draft/
 
 # history / profiles folders / images
 history/
