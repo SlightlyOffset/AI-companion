@@ -61,15 +61,25 @@ def app_commands(ops: str):
                       Fore.WHITE + str(value)
             print(Fore.CYAN + f"  {key}: " + val_str)
 
+    def _toggle_tts():
+        is_enabled = get_setting("tts_enabled", True)
+        print(Fore.GREEN + "[SYSTEM] Text-to-Speech enabled." if not is_enabled else Fore.RED + "[SYSTEM] Text-to-Speech disabled.")
+        update_setting("tts_enabled", not is_enabled)
+
+    def _toggle_tts_tag():
+        is_enabled = get_setting("show_tts_engine", True)
+        print(Fore.GREEN + "[SYSTEM] TTS engine tag enabled." if not is_enabled else Fore.RED + "[SYSTEM] TTS engine tag disabled.")
+        update_setting("show_tts_engine", not is_enabled)
+
     def _toggle_narration():
         is_enabled = get_setting("speak_narration", False)
         print(Fore.GREEN + "[SYSTEM] Narration enabled." if not is_enabled else Fore.RED + "[SYSTEM] Narration disabled.")
         update_setting("speak_narration", not is_enabled)
 
     def _toggle_speak():
-        is_enabled = get_setting("tts_enabled", True)
-        print(Fore.GREEN + "[SYSTEM] Text-to-Speech enabled." if not is_enabled else Fore.RED + "[SYSTEM] Text-to-Speech disabled.")
-        update_setting("tts_enabled", not is_enabled)
+        is_enabled = get_setting("character_speak", True)
+        print(Fore.GREEN + "[SYSTEM] Character speaking enabled." if not is_enabled else Fore.RED + "[SYSTEM] Character speaking disabled.")
+        update_setting("character_speak", not is_enabled)
 
     def _toggle_command():
         is_enabled = get_setting("execute_command", False)
@@ -150,6 +160,11 @@ def app_commands(ops: str):
         print(Fore.GREEN + "[SYSTEM] Console will now clear at startup." if not is_enabled else Fore.RED + "[SYSTEM] Console will no longer clear at startup.")
         update_setting("clear_at_start", not is_enabled)
 
+    def _toggle_errors():
+        is_enabled = get_setting("suppress_errors", False)
+        print(Fore.GREEN + "[SYSTEM] Error messages will now be shown." if is_enabled else Fore.RED + "[SYSTEM] Non-critical error messages suppressed.")
+        update_setting("suppress_errors", not is_enabled)
+
     def _history(limit: int = 15):
         """Displays the last 15 messages from the current character's history."""
         current_profile_setting = get_setting("current_character_profile")
@@ -217,11 +232,14 @@ def app_commands(ops: str):
         "//reset_all": _reset_all,
         "//reset_rel": _reset_rel,
         "//restart": _restart,
+        '//toggle_tts_tag': _toggle_tts_tag,
+        "//toggle_tts": _toggle_tts,
         "//toggle_speak": _toggle_speak,
         "//toggle_narration": _toggle_narration,
         "//toggle_command": _toggle_command,
         "//toggle_clear_at_start": _toggle_clear_on_start,
         "//toggle_recap_on_start": _toggle_recap_on_start,
+        "//toggle_errors": _toggle_errors,
         "//show_settings": _show_settings,
         "//history": _history,
         "//recap": _history,

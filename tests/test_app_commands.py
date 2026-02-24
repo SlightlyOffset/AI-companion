@@ -109,6 +109,25 @@ class TestAppCommands(unittest.TestCase):
         self.assertIn("User: Hello there!", output)
 
 
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_toggle_errors_enables_suppression(self, mock_stdout):
+        # Start with suppress_errors = False → toggling should enable it
+        self.mock_get_setting.return_value = False
+        result = app_commands("//toggle_errors")
+        self.assertTrue(result)
+        output = strip_ansi(mock_stdout.getvalue())
+        self.assertIn("[SYSTEM] Non-critical error messages suppressed.", output)
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_toggle_errors_disables_suppression(self, mock_stdout):
+        # Start with suppress_errors = True → toggling should disable it
+        self.mock_get_setting.return_value = True
+        result = app_commands("//toggle_errors")
+        self.assertTrue(result)
+        output = strip_ansi(mock_stdout.getvalue())
+        self.assertIn("[SYSTEM] Error messages will now be shown.", output)
+
+
 if __name__ == "__main__":
     unittest.main()
 

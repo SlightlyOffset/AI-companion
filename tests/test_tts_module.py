@@ -31,6 +31,12 @@ class TestTTSModule(unittest.TestCase):
         # Verify it attempted to run the async generate_edge_tts
         self.assertTrue(mock_async_run.called)
 
+    @patch('engines.tts_module.get_setting')
+    def test_generate_audio_returns_false_when_tts_disabled(self, mock_get_setting):
+        mock_get_setting.side_effect = lambda key, default=None: False if key == "tts_enabled" else default
+        result = generate_audio("Hello", "test.mp3")
+        self.assertFalse(result)
+
     def test_voices_directory_exists(self):
         self.assertTrue(os.path.exists("voices"))
 

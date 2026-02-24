@@ -153,6 +153,9 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
     Converts text to an MP3 or WAV file.
     Supports edge-tts (default) and XTTS.
     """
+    if not get_setting("tts_enabled", True):
+        return False
+
     cleaned_text = clean_text_for_tts(text, speak_narration=True)
     if not cleaned_text:
         return False
@@ -193,7 +196,8 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
                         save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
                     xtts_success = True
             except Exception as e:
-                print(Fore.YELLOW + f"[XTTS LOCAL ERROR] {e}" + Fore.RESET)
+                if not get_setting("suppress_errors", False):
+                    print(Fore.YELLOW + f"[XTTS LOCAL ERROR] {e}" + Fore.RESET)
 
         # Try Remote if Local failed or not available
         if not xtts_success and clone_ref and get_setting("remote_tts_url"):
@@ -208,7 +212,8 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
                             save_to_cache(cleaned_text, cache_voice, cache_key_engine, f.read())
                         xtts_success = True
             except Exception as e:
-                print(Fore.YELLOW + f"[XTTS REMOTE ERROR] {e}" + Fore.RESET)
+                if not get_setting("suppress_errors", False):
+                    print(Fore.YELLOW + f"[XTTS REMOTE ERROR] {e}" + Fore.RESET)
 
         if xtts_success:
             # IMPORTANT: Ensure the file exists at the EXACT path requested by the caller
@@ -239,7 +244,8 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
             
             return True
         except Exception as e:
-            print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
+            if not get_setting("suppress_errors", False):
+                print(Fore.RED + f"\n[TTS GEN ERROR] {e}")
             return False
 
     return False
@@ -255,7 +261,8 @@ def play_audio(filename):
             subprocess.run([cmd, filename])
             time.sleep(2)
     except Exception as e:
-        print(Fore.RED + f"\n[TTS PLAY ERROR] {e}")
+        if not get_setting("suppress_errors", False):
+            print(Fore.RED + f"\n[TTS PLAY ERROR] {e}")
     finally:
         if os.path.exists(filename):
             try: os.remove(filename)
