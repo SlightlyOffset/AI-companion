@@ -20,7 +20,7 @@ from colorama import init, Fore, Style
 # Local imports
 from engines.actions import execute_command
 from engines.utilities import is_command
-from engines.utilities import pick_profile, pick_user_profile, render_historical_message, get_text_style
+from engines.utilities import pick_profile, pick_user_profile, get_text_style
 from engines.app_commands import app_commands, RestartRequested
 from engines.responses import get_respond_stream, apply_mood_decay
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
@@ -235,6 +235,8 @@ def run_app():
                 full_response += chunk
                 current_buffer += chunk
 
+                # ---------------------------------------------------------------
+                # This entire block responsible for deciding when to send text to TTS, and which voice/engine to use.
                 # Check for split points
                 split_points = get_smart_split_points(current_buffer)
                 if split_points:
@@ -262,7 +264,9 @@ def run_app():
                             tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
                         last_point = point
                     current_buffer = current_buffer[last_point:]
+                # ---------------------------------------------------------------
 
+            # After the full response is printed, check if there's any leftover text that hasn't been sent to TTS yet (e.g. after the last punctuation or asterisk)
             if current_buffer.strip():
                 clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_buffer).strip()
                 voice = narrator_voice if tts_in_narration or '*' in clean_leftover else char_voice
@@ -272,6 +276,8 @@ def run_app():
                 cleaned = clean_text_for_tts(clean_leftover, speak_narration=True)
                 if cleaned:
                     tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+                # Note: If the leftover buffer contains an asterisk, it will toggle the state for the next response, which is fine.
+
 
             sys.stdout.write(Style.RESET_ALL + "\n")
             print(Fore.WHITE + Style.DIM + "-" * 30 + Style.RESET_ALL)

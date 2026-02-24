@@ -151,7 +151,7 @@ def render_historical_message(role: str, content: str, user_name: str = "User", 
             # Outside asterisks
             output += f"{base_style}{part}"
 
-    print(output + Style.RESET_ALL)
+    print(output + "\n" + Style.RESET_ALL)
 
 def get_text_style(profile_data):
     colors = profile_data.get("colors", {})

@@ -1,10 +1,10 @@
 {
     "remote_llm_url": null,
-    "remote_tts_url": null,
+    "remote_tts_url": "https://aerobically-meddlesome-ria.ngrok-free.dev",
     "execute_command": false,
-    "tts_enabled": true,
+    "tts_enabled": false,
     "default_tts_voice": "en-GB-SoniaNeural",
-    "speak_narration": true,
+    "speak_narration": false,
     "narration_tts_voice": "en-US-AndrewNeural",
     "tts_rate": 170,
     "default_llm_model": "fluffy/l3-8b-stheno-v3.2",
