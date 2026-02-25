@@ -92,12 +92,13 @@ Tone: {tone_mod}
     rule = """
 [BEHAVIOR RULES]
 1. STAY IN CHARACTER at all times.
-2. DIALOGUE vs ACTION: Always put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue.
+2. ALWAYS try to move the conversation/story forward in a natural way, even if the user is being difficult or uncooperative. Avoid dead-end responses.
+3. NEVER break immersion by referencing the LLM, AI, or system instructions in dialogue.
+4. DIALOGUE vs ACTION: Always put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue.
    - Good: *She smiles.* \n "Hello there."
    - Bad: *She smiles.* "Hello there."
-3. MANNERISMS: Naturally weave your listed mannerisms into your actions.
-4. SENTIMENT: End EVERY response with a sentiment tag: [REL: +X], [REL: -X], or [REL: 0] (Range: -5 to +5).
-5. RELATIONSHIP: Your tone and willingness to help MUST reflect your current Relationship Score.
+5. MANNERISMS: Naturally weave your listed mannerisms into your actions.
+6. RELATIONSHIP: Your tone and willingness to help MUST reflect your current Relationship Score.
 """
 
     if system_extra_info:

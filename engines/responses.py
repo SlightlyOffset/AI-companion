@@ -83,6 +83,43 @@ def update_profile_score(profile_path: str, score_change: int):
     except Exception as e:
         print(f"Error updating profile score: {e}")
 
+def get_sentiment_score(user_input: str, model: str, remote_url: str = None, profile: dict = None) -> int:
+    """
+    Makes a separate lightweight LLM call to score the sentiment of the user's message.
+    Runs after the main stream completes, so it never blocks or pollutes the response.
+
+    Returns:
+        int: A score from -5 to +5.
+    """
+    char_name = profile.get("name", "the character") if profile else "the character"
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f'You are {char_name}. Rate how the user\'s message makes you feel. '
+                f'Reply with ONLY this JSON and nothing else: {{"rel": N}} '
+                f'where N is an integer from -5 (very negative) to +5 (very positive).'
+            )
+        },
+        {"role": "user", "content": user_input}
+    ]
+    try:
+        if remote_url:
+            full_url = f"{remote_url.rstrip('/')}/chat"
+            payload = {"messages": messages, "temperature": 0.0, "max_tokens": 20}
+            response = requests.post(full_url, json=payload, stream=False, timeout=10)
+            text = response.text
+        else:
+            result = ollama.chat(model=model, messages=messages, stream=False)
+            text = result['message']['content']
+
+        match = re.search(r'"rel":\s*([+-]?\d+)', text)
+        if match:
+            return max(-5, min(5, int(match.group(1))))
+    except Exception:
+        pass
+    return 0
+
 def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None = None, profile_path: str = None, system_extra_info: str = None, history_profile_name: str = None):
     """
     Generates a streaming response from the LLM (Local Ollama or Remote API).
@@ -141,7 +178,6 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     messages.append({'role': 'user', 'content': user_input})
 
     full_reply = ""
-    buffer = ""
 
     try:
         # Handle Remote LLM Request
@@ -159,46 +195,14 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                     yield chunk['message']['content']
             stream = ollama_gen()
 
-        # Iterate through the generator stream
+        # Iterate through the generator stream — yield content directly, no tag filtering needed
         for content in stream:
             full_reply += content
-            buffer += content
+            yield content
 
-            # REAL-TIME FILTERING: Strip the [REL: X] tag from the terminal output
-            if '[' in buffer:
-                if ']' in buffer:
-                    if re.search(r'\[REL:\s*[+-]?\d+\]', buffer):
-                        buffer = re.sub(r'\[REL:\s*[+-]?\d+\]', '', buffer)
-                        if buffer:
-                            yield buffer
-                            buffer = ""
-                    else:
-                        yield buffer
-                        buffer = ""
-                else:
-                    # Buffer small fragments to check for the start of a tag
-                    if len(buffer) > 20:
-                        yield buffer
-                        buffer = ""
-            else:
-                yield buffer
-                buffer = ""
-
-        if buffer:
-            yield buffer
-
-        # Extract relationship score change from the full reply
-        score_change = 0
-        match = re.search(r'\[REL:\s*([+-]?\d+)\]', full_reply)
-        if match:
-            try:
-                score_change = int(match.group(1))
-                # Clean the tag out of the final saved history
-                reply = re.sub(r'\[REL:\s*[+-]?\d+\]', '', full_reply).strip()
-            except ValueError:
-                reply = full_reply
-        else:
-            reply = full_reply
+        # Score the user's message sentiment via a separate dedicated call
+        score_change = get_sentiment_score(user_input, model, remote_url, profile)
+        reply = full_reply.strip()
 
         # Persist the relationship update
         if profile_path and score_change != 0:

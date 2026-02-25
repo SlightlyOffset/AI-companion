@@ -288,13 +288,7 @@ def run_app():
 
             # After the full response is printed, check if there's any leftover text that hasn't been sent to TTS yet (e.g. after the last punctuation or asterisk)
             if get_setting("tts_enabled", False) and current_buffer.strip():
-                clean_leftover = re.sub(r'\[REL:\s*[+-]?\d+\]', '', current_buffer).strip()
-                # Use tts_in_narration state (consistent with the split-point loop above)
-                voice = narrator_voice if tts_in_narration else char_voice
-                engine = narrator_engine if tts_in_narration else char_engine
-                clone_ref = None if tts_in_narration else char_clone_ref
-                language = "en" if tts_in_narration else char_language
-                cleaned = clean_text_for_tts(clean_leftover, speak_narration=True)
+                cleaned = clean_text_for_tts(current_buffer.strip(), speak_narration=True)
                 if cleaned:
                     if not speak_enable and narration_enable and (voice == narrator_voice):
                         tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
