@@ -14,5 +14,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Improving on setting and config scope, like suppressing error message or properly toggling TTS**
+- [x] **Track: Improving on setting and config scope, like suppressing error message or properly toggling TTS**
 *Link: [./tracks/config_scope_20260218/](./tracks/config_scope_20260218/)*
+
+---
+
+- [ ] **Track: implement mode switch on prompt crafting to enable casual conversation mode aside from roleplay mode**
+*Link: [./tracks/mode_switch_20260225/](./tracks/mode_switch_20260225/)*
