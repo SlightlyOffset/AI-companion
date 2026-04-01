@@ -25,7 +25,7 @@ def load_user_profile():
             return None
     return None
 
-def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_req: str, tone_mod: str, system_extra_info: str = None) -> str:
+def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_req: str, tone_mod: str, mode: str = "rp", system_extra_info: str = None) -> str:
     """
     Constructs the master system prompt for the LLM.
     Combines character backstory, mannerisms, user details, and behavioral rules.
@@ -36,6 +36,7 @@ def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_re
         rel_label (str): Textual label for the relationship (e.g., 'Soulmate').
         action_req (str): Instruction on whether to obey or refuse requests.
         tone_mod (str): Instruction on the tone of the response.
+        mode (str): Interaction mode ('rp' or 'casual').
         system_extra_info (str): Temporary context/notes for this specific turn.
 
     Returns:
@@ -58,7 +59,7 @@ Age: {info.get('age', 'Unknown')}
 Appearance: {info.get('appearance', 'Unknown')}
 Likes: {', '.join(info.get('likes', []))}
 Dislikes: {', '.join(info.get('dislikes', []))}
-Mannerisms (use these in RP actions): {mannerisms}
+Mannerisms: {mannerisms}
 """
 
     # 2. User Profile Details (Who the AI thinks it's talking to)
@@ -86,19 +87,27 @@ Mannerisms to watch for: {', '.join(user_profile.get('rp_mannerisms', []))}
 Rel: {rel_label} ({rel_score}/100)
 Action: {action_req}
 Tone: {tone_mod}
+Mode: {mode.upper()}
 """
 
-    # 4. Global Behavioral Rules for RP Immersion
-    rule = """
-[BEHAVIOR RULES]
+    # 4. Global Behavioral Rules
+    if mode == "casual":
+        rule = """
+[BEHAVIOR RULES: CASUAL MODE]
 1. STAY IN CHARACTER at all times.
-2. ALWAYS try to move the conversation/story forward in a natural way, even if the user is being difficult or uncooperative. Avoid dead-end responses.
-3. NEVER break immersion by referencing the LLM, AI, or system instructions in dialogue.
-4. DIALOGUE vs ACTION: Always put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue.
+2. CONSISE: Keep responses short, direct, and conversational.
+3. NO NARRATION: Do NOT use asterisks (*...*) for actions or narration. Use only spoken dialogue.
+4. RELATIONSHIP: Your tone MUST reflect your current Relationship Score.
+"""
+    else:  # Default to RP
+        rule = """
+[BEHAVIOR RULES: RP MODE]
+1. STAY IN CHARACTER at all times.
+2. ALWAYS move the story forward naturally.
+3. DIALOGUE vs ACTION: Put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue.
    - Good: *She smiles.* \n "Hello there."
-   - Bad: *She smiles.* "Hello there."
-5. MANNERISMS: Naturally weave your listed mannerisms into your actions.
-6. RELATIONSHIP: Your tone and willingness to help MUST reflect your current Relationship Score.
+4. MANNERISMS: Weave your listed mannerisms into your actions.
+5. RELATIONSHIP: Your tone and willingness to help MUST reflect your current Relationship Score.
 """
 
     if system_extra_info:
