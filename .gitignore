@@ -35,6 +35,9 @@ cache/
 # Generated/temporary audio files
 *.mp3
 
+# App settings
+settings.json
+
 # gemini-cli settings
 .gemini/
 
