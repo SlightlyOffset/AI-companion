@@ -31,3 +31,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [ ] **Track: Profile Branching & Scenario Engine (Save Slots / Multiverse)**
 *Link: [./tracks/profile_branching_20260401/](./tracks/profile_branching_20260401/)*
+
+---
+
+- [ ] **Track: StyleTTS 2 Voice Cloning Implementation**
+*Link: [./tracks/styletts2_implementation_20260401/](./tracks/styletts2_implementation_20260401/)*

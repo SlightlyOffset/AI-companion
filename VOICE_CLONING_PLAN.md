@@ -1,43 +1,42 @@
-# 🎙️ Voice Cloning Implementation Plan (XTTS v2)
+# 🎙️ High-Performance Voice Cloning (StyleTTS 2)
 
 ## 📋 Overview
-To implement high-quality voice sampling on an **RTX 3050 (6GB VRAM)**, we will offload the LLM "brain" to **Google Colab** and use the local GPU exclusively for the **XTTS v2** voice cloning engine.
+To achieve the lowest possible latency and best VRAM efficiency on an **RTX 3050 (6GB VRAM)**, we are transitioning from XTTS v2 to **StyleTTS 2**. This allows for high-fidelity, zero-shot voice cloning with significantly lower resource overhead.
+
+### **Why StyleTTS 2?**
+- **VRAM Usage**: ~2GB (XTTS v2 is ~4GB+).
+- **Speed**: 40x-80x real-time (XTTS v2 is ~1-2x).
+- **Quality**: Better prosody and natural flow for roleplay.
 
 ---
 
 ## 🛠️ Step 1: Environment Setup
-*   **Dependencies**: Install `coqui-tts` and `ffmpeg`.
-    *   `pip install TTS`
-    *   Ensure `ffmpeg` is installed and in the System PATH.
-*   **VRAM Management**: 
-    *   LLM must be running via `remote_llm_url` (Colab).
-    *   Local Ollama should be stopped to free up 6GB VRAM for XTTS.
+*   **System Dependency**: Install `espeak-ng`.
+    *   **Windows**: Download and install from [espeak-ng releases](https://github.com/espeak-ng/espeak-ng/releases). Add to System PATH.
+*   **Python Dependencies**:
+    *   `pip install styletts2`
+*   **Model Storage**: Checkpoints (~400MB) will be automatically managed or stored in `models/tts/`.
 
 ## 🎤 Step 2: Voice Sampling
-*   **Reference Audio**: Requires a 10-20 second `.wav` file of the target voice.
-*   **Storage**: Create a `/voices` directory to hold reference samples (e.g., `voices/manganese_ref.wav`).
-*   **Quality**: Sample must be clean (no background music/noise), 22050Hz or 44100Hz preferred.
+*   **Reference Audio**: Requires a 5-10 second `.wav` file.
+*   **Quality**: Must be clean (no background noise), mono, 24kHz or 44.1kHz.
+*   **Storage**: Store in `voices/{character}/reference.wav`.
 
 ## 💻 Step 3: Code Integration (`engines/tts_module.py`)
-*   **Model Initialization**: 
-    *   Add a `XTTSWorker` class or update `tts_module.py` to load the `TTS` model onto `cuda`.
-    *   Implement a singleton pattern to ensure the model only loads once.
-*   **Generation Logic**:
-    *   Update `generate_audio` to accept a `use_cloning` flag.
-    *   If `use_cloning` is True, use `tts.tts_to_file(...)` with the `speaker_wav` reference.
-*   **Fallback**: Maintain `edge-tts` as a fallback if the local GPU is overloaded or the model fails to load.
+*   **Implementation**: 
+    *   Initialize `StyleTTS2` as a singleton worker.
+    *   Use `inference(text, target_voice_path=...)` for generation.
+*   **Fallback**: Maintain `edge-tts` as a zero-resource fallback if the GPU is unavailable.
 
-## ⚙️ Step 4: Configuration (`settings.json`)
-*   Add new keys:
-    *   `"use_local_cloning": true`
-    *   `"cloning_reference_file": "voices/sample.wav"`
-    *   `"xtts_model_path": "tts_models/multilingual/multi-dataset/xtts_v2"`
+## ⚙️ Step 4: Configuration (`settings.json` / `.env`)
+*   `"tts_engine": "styletts2"`
+*   `"use_local_cloning": true`
+*   `"cloning_reference_file": "voices/Astgenne/reference.wav"`
 
 ---
 
 ## 🔄 Workflow
-1.  **User** starts Colab Bridge and updates `remote_llm_url`.
-2.  **App** starts and initializes XTTS v2 on the RTX 3050.
-3.  **LLM** (Colab) generates a response.
-4.  **TTS** (Local) receives text and clones the voice using the reference `.wav`.
-5.  **Audio** plays with zero-latency streaming.
+1.  **App** detects `tts_engine: "styletts2"` and loads the model into VRAM (~2GB).
+2.  **LLM** generates response chunks.
+3.  **StyleTTS 2** performs instant inference using the character's reference `.wav`.
+4.  **Audio** plays with near-zero latency, even while running a local 4-bit LLM.
