@@ -32,8 +32,12 @@ gha-creds-*.json
 models/
 cache/
 
-# Generated/temporary audio files
+# Generated/temporary audio files / voice samples
+voices/
 *.mp3
+*.wav
+*.ogg
+*.flac
 
 # App settings
 settings.json
