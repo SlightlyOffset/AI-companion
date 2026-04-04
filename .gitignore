@@ -21,12 +21,20 @@ ENV/
 java_poc/
 character_draft/
 
-# history / profiles folders / images
+# history / profiles folders / images / audio files
 history/
 profiles/
 img/
 .gemini/
 gha-creds-*.json
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.wav
+*.ogg
+*.mp3
+
 
 # XTTS v2 and Audio Cache
 models/
@@ -34,3 +42,6 @@ cache/
 
 # Generated/temporary audio files
 *.mp3
+
+# App settings
+settings.json
