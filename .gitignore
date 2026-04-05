@@ -7,6 +7,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-project
+
 # Environments
 .venv/
 env/
@@ -21,16 +26,18 @@ ENV/
 java_poc/
 character_draft/
 
-# history / profiles folders / images
+# history / profiles folders / images / voice samples
 history/
 profiles/
 img/
-.gemini/
-gha-creds-*.json
+voices/
 
 # XTTS v2 and Audio Cache
 models/
 cache/
+
+# App settings
+settings.json
 
 # Generated/temporary audio files
 *.mp3
