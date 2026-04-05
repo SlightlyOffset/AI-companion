@@ -75,11 +75,8 @@ def ensure_voice_on_bridge(bridge_url, speaker_id, speaker_wavs):
         # STRICT LIMIT: Only upload the SINGLE largest/most-representative sample.
         # This minimizes the POST body size to ~1-2MB, which is the most stable range
         # for Colab/Ngrok during peak hours.
-        if not upload_samples:
-            upload_samples = [speaker_wavs[0]]
-            
-        # We pick the largest file among the candidates, as it usually has the most voice data
-        best_sample = max(speaker_wavs[:3], key=os.path.getsize)
+        candidates = speaker_wavs[:3]
+        best_sample = max(candidates, key=os.path.getsize)
         upload_samples = [best_sample]
 
         if get_setting("debug_mode", False):
@@ -152,22 +149,21 @@ def generate_remote_xtts(text, output_path, speaker_wav, language="en"):
 
         headers = {"ngrok-skip-browser-warning": "true"}
         
-        # For now, we still download the full file, but without the 'files' payload.
+        # Use a context manager to ensure the connection is closed after reading the stream
         # Phase 2 will implement real-time streaming playback.
-        response = requests.post(endpoint, data=data, headers=headers, timeout=120, stream=True)
+        with requests.post(endpoint, data=data, headers=headers, timeout=120, stream=True) as response:
+            if response.status_code == 200:
+                all_pcm = b""
+                for chunk in response.iter_content(chunk_size=4096):
+                    all_pcm += chunk
 
-        if response.status_code == 200:
-            all_pcm = b""
-            for chunk in response.iter_content(chunk_size=4096):
-                all_pcm += chunk
-
-            # Wrap the collected PCM in a WAV header and save
-            save_pcm_as_wav(all_pcm, output_path)
-            return True
-        else:
-            if not get_setting("suppress_errors", False):
-                print(Fore.RED + f"[XTTS REMOTE ERROR] {response.status_code}: {response.text}" + Fore.RESET)
-            return False
+                # Wrap the collected PCM in a WAV header and save
+                save_pcm_as_wav(all_pcm, output_path)
+                return True
+            else:
+                if not get_setting("suppress_errors", False):
+                    print(Fore.RED + f"[XTTS REMOTE ERROR] {response.status_code}: {response.text}" + Fore.RESET)
+                return False
 
     except Exception as e:
         if not get_setting("suppress_errors", False):
