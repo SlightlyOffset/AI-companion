@@ -104,7 +104,7 @@ class CharacterImporter:
             "relationship_score": 0,
             "colors": {
                 "text": "WHITE",
-                "label": "CYAN"
+                "label": "NORMAL"
             }
         }
 
@@ -139,7 +139,7 @@ class CharacterImporter:
             return False
 
         if not filename:
-            filename = profile["name"].replace(" ", "_").lower() + ".json"
+            filename = profile["name"].replace(" ", "_") + ".json"
 
         if not filename.endswith(".json"):
             filename += ".json"
