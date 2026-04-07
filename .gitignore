@@ -17,6 +17,7 @@ Thumbs.db
 .venv/
 env/
 venv/
+aienv/
 ENV/
 
 # Local configuration files
