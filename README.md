@@ -113,3 +113,7 @@ Edit `settings.json` to customize your experience:
 Feel free to fork, submit PRs, or suggest personalities.
 
 *Disclaimer: This is an early build codebase. Expect some quirks.*
+
+---
+
+### 💖 Made with love by [@SlightlyOffset](https://github.com/SlightlyOffset). And thanks to my swamp of AI slaves for their support!
