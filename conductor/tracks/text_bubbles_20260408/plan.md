@@ -1,4 +1,4 @@
-# Implementation Plan - Text Bubble UI Implementation
+# Implementation Plan - Text Bubble UI Implementation [checkpoint: 22844f0]
 
 ## Phase 1: CSS Foundation
 - [x] Define `.user_bubble` and `.ai_bubble` classes in `menu.py` CSS.
