@@ -195,17 +195,26 @@ def render_avatar(image_path: str, width: int = 35) -> str:
         # Using --size flag for Chafa
         size_arg = f"{width}x{int(width/2)}" # Most terminal cells are ~2x taller than wide
 
-        # Call chafa
-        # --symbols=solid+vhalf to get more "pixel" feel on some terminals
-        # --clear removes any leftover terminal garbage
+        # Call chafa with Sixel format
         cmd = [
             "chafa",
+            "--format", "sixel",
             "--size", size_arg,
-            "--symbols", "solid+vhalf",
             image_path
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except Exception as e:
-        return f"{Fore.RED}[Error rendering avatar: {str(e)}]{Style.RESET_ALL}"
+        # Fallback to symbols if Sixel fails or isn't supported
+        try:
+            cmd_fallback = [
+                "chafa",
+                "--size", size_arg,
+                "--symbols", "solid+vhalf",
+                image_path
+            ]
+            result = subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
+            return result.stdout.strip()
+        except:
+            return f"{Fore.RED}[Error rendering avatar: {str(e)}]{Style.RESET_ALL}"
