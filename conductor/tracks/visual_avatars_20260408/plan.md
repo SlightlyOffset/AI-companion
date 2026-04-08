@@ -1,9 +1,9 @@
 # Implementation Plan - Visual Avatar Integration
 
-## Phase 1: Environment & Profile Setup
+## Phase 1: Environment & Profile Setup [checkpoint: 4280bd7]
 - [x] Verify `chafa` availability in the system path. 9b7fabf
-- [ ] Add `avatar_path` to at least one character profile (e.g., Astgenne).
-- [ ] Implement a `render_avatar` utility that calls Chafa and returns an ANSI string.
+- [x] Add `avatar_path` to at least one character profile (e.g., Astgenne). 9b7fabf
+- [x] Implement a `render_avatar` utility that calls Chafa (Sixel) and returns an ANSI string. a043a74
 
 ## Phase 2: UI Integration
 - [ ] Update `TaiMenu.compose` to include an `#avatar_portrait` widget in the sidebar.
