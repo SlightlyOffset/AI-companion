@@ -260,6 +260,11 @@ class TaiMenu(App):
         self.update_sidebar()
         self.query_one("#init_msg").update(f"[bold green]System:[/bold green] Loaded character profile: [bold]{self.ch_name}[/bold]")
 
+        # Render avatar portrait
+        avatar_path = self.character_profile.get("avatar_path")
+        rendered_art = render_avatar(avatar_path, width=35)
+        self.query_one("#avatar_portrait").update(rendered_art)
+
         # Print character's starter messages and save to memory (if any, which should always be any)
         # Only do this if the history doesn't exist yet, to avoid repeating starter messages on every launch
         has_history = memory_manager.has_history(self.history_profile_name)
