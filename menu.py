@@ -73,12 +73,12 @@ class TaiMenu(App):
 
     CSS = """
     #app_body {
-        layout: grid;
-        grid-size: 2;
-        grid-columns: 1fr 35;
+        layout: horizontal;
         height: 1fr;
+        width: 100%;
     }
     #chat_container {
+        width: 1fr;
         height: 100%;
     }
     #chat_list {
@@ -88,6 +88,7 @@ class TaiMenu(App):
         overflow-y: scroll;
     }
     #status_sidebar {
+        width: 35;
         height: 100%;
         background: $panel;
         border-left: tall $accent;
@@ -149,13 +150,7 @@ class TaiMenu(App):
     def watch_show_sidebar(self, show: bool) -> None:
         """Called when show_sidebar reactive property changes."""
         try:
-            sidebar = self.query_one("#status_sidebar")
-            body = self.query_one("#app_body")
-            sidebar.display = show
-            if show:
-                body.styles.grid_columns = "1fr 35"
-            else:
-                body.styles.grid_columns = "1fr"
+            self.query_one("#status_sidebar").display = show
         except Exception:
             pass # Widget not mounted yet
 
@@ -165,7 +160,7 @@ class TaiMenu(App):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        with Container(id="app_body"):
+        with Horizontal(id="app_body"):
             with Vertical(id="chat_container"):
                 with ScrollableContainer(id="chat_list"):
                     yield Label("[bold green]System:[/bold green] Waiting for profile...", id="init_msg", classes="system_msg")
