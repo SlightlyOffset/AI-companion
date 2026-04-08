@@ -23,7 +23,8 @@
 }
 #avatar_portrait {
     width: 35;
-    height: auto;
+    height: 16;
+    display: block;
     content-align: center middle;
     margin-bottom: 1;
 }

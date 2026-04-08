@@ -79,6 +79,16 @@ class TaiMenu(App):
         self.show_sidebar = not self.show_sidebar
 
     def compose(self) -> ComposeResult:
+        # Get initial avatar path
+        init_avatar = None
+        if self.char_path:
+            try:
+                with open(self.char_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    init_avatar = data.get("avatar_path")
+            except:
+                pass
+
         yield Header(show_clock=True)
         with Horizontal(id="app_body"):
             with Vertical(id="chat_container"):
@@ -86,7 +96,7 @@ class TaiMenu(App):
                     yield Label("[bold green]System:[/bold green] Waiting for profile...", id="init_msg", classes="system_msg")
                 yield Input(placeholder="Type your message here...", id="user_input")
             with Vertical(id="status_sidebar"):
-                yield Image(None, id="avatar_portrait")
+                yield Image(init_avatar, id="avatar_portrait")
                 yield Label("--- Companion ---", classes="sidebar_header")
                 yield Label("Name: [bold magenta]None[/bold magenta]", id="lbl_char")
                 yield Label("Mood: [bold]Neutral[/bold]", id="lbl_mood")
@@ -260,11 +270,6 @@ class TaiMenu(App):
 
         self.update_sidebar()
         self.query_one("#init_msg").update(f"[bold green]System:[/bold green] Loaded character profile: [bold]{self.ch_name}[/bold]")
-
-        # Render avatar portrait
-        avatar_path = self.character_profile.get("avatar_path")
-        if avatar_path and os.path.exists(avatar_path):
-            self.query_one("#avatar_portrait", Image).path = avatar_path
 
         # Print character's starter messages and save to memory (if any, which should always be any)
         # Only do this if the history doesn't exist yet, to avoid repeating starter messages on every launch
