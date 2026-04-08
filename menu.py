@@ -86,7 +86,7 @@ class TaiMenu(App):
                 with open(self.char_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     init_avatar = data.get("avatar_path")
-            except:
+            except (FileNotFoundError, json.JSONDecodeError):
                 pass
 
         yield Header(show_clock=True)
