@@ -21,6 +21,12 @@
     padding: 1;
     overflow-y: auto;
 }
+#avatar_portrait {
+    width: 35;
+    height: auto;
+    content-align: center middle;
+    margin-bottom: 1;
+}
 .sidebar_header {
     color: $accent;
     text-style: bold;
