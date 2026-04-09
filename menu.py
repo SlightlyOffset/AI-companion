@@ -16,11 +16,12 @@ import ollama
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Input, Static, Label, Select, ProgressBar, Switch
+from textual.widgets import Header, Footer, Input, Static, Label, Select, ProgressBar, Switch, TextArea
 from textual_image.widget import Image
-from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
-from textual import work
+from textual.containers import Vertical, Horizontal, ScrollableContainer
+from textual import work, events
 from textual.reactive import reactive
+from textual.message import Message
 
 from engines.app_commands import app_commands
 from engines.config import update_setting, get_setting
@@ -50,6 +51,44 @@ def format_rp(text):
         else:
             result += part
     return result
+
+class ChatInput(TextArea):
+    """A multi-line input field that grows vertically up to a limit."""
+    class Submitted(Message):
+        """Sent when the user presses Enter (without Shift)."""
+        def __init__(self, value: str) -> None:
+            super().__init__()
+            self.value = value
+
+    def on_mount(self) -> None:
+        self.show_line_numbers = False
+        # Height 3 allows for 1 line of text + top/bottom borders
+        self.height = 3
+        self.focus()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Resize height based on content, accounting for borders."""
+        line_count = len(self.document.lines)
+        # text lines + 2 for the borders, maxing out at 10 total height
+        self.height = min(max(1, line_count), 8) + 2
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle Enter for submission and provide fallbacks for newlines."""
+        if event.key == "enter":
+            # Only submit on plain "enter". 
+            # If the terminal sends "shift+enter" or "ctrl+enter" as distinct keys, 
+            # they will fall through to the default TextArea behavior (newline).
+            event.prevent_default()
+            text = self.text.strip()
+            if text:
+                self.post_message(self.Submitted(text))
+                self.text = ""
+                self.height = 3
+        elif event.key == "ctrl+j":
+            # Fallback: Many terminals send Ctrl+J for newline or can be used
+            # as a dedicated "Force Newline" shortcut.
+            self.insert("\n")
+            event.prevent_default()
 
 class TaiMenu(App):
     """t.ai - Logic-focused TUI implementation."""
@@ -83,6 +122,7 @@ class TaiMenu(App):
         self.char_path = char_path
         self.user_path = user_path
         self.character_profile = None
+        self.char_name_lbl_color = "magenta"
         self.user_profile = None
         self.ch_name = "Assistant"
         self.user_name = "User"
@@ -129,7 +169,7 @@ class TaiMenu(App):
             with Vertical(id="chat_container"):
                 with ScrollableContainer(id="chat_list"):
                     yield Label("[bold green]System:[/bold green] Waiting for profile...", id="init_msg", classes="system_msg")
-                yield Input(placeholder="Type your message here...", id="user_input")
+                yield ChatInput(id="user_input")
             with Vertical(id="status_sidebar"):
                 yield Label("--- Companion ---", classes="sidebar_header")
                 yield Image(init_avatar, id="avatar_portrait_character")
@@ -303,6 +343,8 @@ class TaiMenu(App):
             self.character_profile = json.load(f)
 
         self.ch_name = self.character_profile.get("name", "Assistant")
+        colors = self.character_profile.get("colors", {})
+        self.char_name_lbl_color = colors.get("name_lbl", "magenta")
         self.history_profile_name = os.path.basename(self.char_path).replace(".json", "")
         update_setting("current_character_profile", os.path.basename(self.char_path))
 
@@ -327,20 +369,23 @@ class TaiMenu(App):
         if get_setting("auto_recap_on_start", False):
             self.run_recap()
 
+        # Print tip message
+        self.add_message("Tip: Use [bold]Ctrl+J[/bold] for a newline.", role="tip_message")
+
     def update_sidebar(self):
         rel = self.character_profile.get("relationship_score", 0)
         
         # Determine relationship label
-        if rel >= 80: rel_label = "Soulmate / Bestie"
-        elif rel >= 40: rel_label = "Close Friend"
-        elif rel >= 15: rel_label = "Friendly / Liked"
-        elif rel >= -15: rel_label = "Neutral / Acquaintance"
-        elif rel >= -40: rel_label = "Annoyance / Disliked"
-        elif rel >= -80: rel_label = "Hostile / Enemy"
-        else: rel_label = "Arch-Nemesis / Despised"
+        if rel >= 80: rel_label, rel_color = "Soulmate / Bestie", "#ff7aeb"
+        elif rel >= 40: rel_label, rel_color = "Close Friend", "#cc7aff"
+        elif rel >= 15: rel_label, rel_color = "Friendly / Liked", "#7fff7d"
+        elif rel >= -15: rel_label, rel_color = "Neutral / Acquaintance", "#6e88ff"
+        elif rel >= -40: rel_label, rel_color = "Annoyance / Disliked", "#ffb163"
+        elif rel >= -80: rel_label, rel_color = "Hostile / Enemy", "#ff4d3d"
+        else: rel_label, rel_color = "Arch-Nemesis / Despised", "#820004"
 
-        self.query_one("#lbl_char").update(f"Name: [bold magenta]{self.ch_name}[/bold magenta]")
-        self.query_one("#lbl_mood").update(f"Mood: [bold]{rel_label}[/bold]")
+        self.query_one("#lbl_char").update(f"Name: [bold {self.char_name_lbl_color}]{self.ch_name}[/bold {self.char_name_lbl_color}]")
+        self.query_one("#lbl_mood").update(f"Mood: [bold {rel_color}]{rel_label}[/bold {rel_color}]")
         self.query_one("#lbl_rel").update(f"Score: [bold]{rel}[/bold]")
         self.query_one("#lbl_user").update(f"User: [bold cyan]{self.user_name}[/bold cyan]")
         
@@ -351,11 +396,13 @@ class TaiMenu(App):
         container = self.query_one("#chat_list")
         if role == "system":
             container.mount(Static(text, markup=True, classes="system_msg"))
+        elif role == "tip_message":
+            container.mount(Static(text, markup=True, classes="tip_msg"))
         else:
             row_class = "user_row" if role == "user" else "ai_row"
             bubble_class = "user_bubble" if role == "user" else "ai_bubble"
             name = self.user_name if role == "user" else self.ch_name
-            name_color = "cyan" if role == "user" else "magenta"
+            name_color = "cyan" if role == "user" else self.char_name_lbl_color
             
             bubble = Static(f"[bold {name_color}]{name}:[/bold {name_color}]\n{text}", markup=True, classes=f"message {bubble_class}")
             row = Horizontal(bubble, classes=f"message_row {row_class}")
@@ -364,14 +411,13 @@ class TaiMenu(App):
             
         container.scroll_end(animate=False)
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handles user input submission."""
+    async def on_chat_input_submitted(self, event: ChatInput.Submitted) -> None:
+        """Handles user input submission from ChatInput."""
         message = event.value.strip()
         if not message: return
 
         # Format user message for display
         display_message = format_rp(message)
-        self.query_one(Input).value = ""
         self.add_message(display_message, role="user")
 
         # Handle commands (original message)
@@ -382,6 +428,14 @@ class TaiMenu(App):
         
         # Trigger AI response
         self.stream_response(message)
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Fallback for any standard Input widgets (legacy or other)."""
+        # Create a mock event to reuse logic if needed, or just redirect
+        class MockEvent:
+            def __init__(self, value):
+                self.value = value
+        await self.on_chat_input_submitted(MockEvent(event.value))
         
     @work(thread=True)
     def stream_response(self, message: str) -> None:

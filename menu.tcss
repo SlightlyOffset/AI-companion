@@ -88,10 +88,27 @@
     width: 100%;
     text-align: center;
 }
-Input {
-    width: 100%;
+.tip_msg {
+    color: $warning;
     margin: 1 0;
+    width: 100%;
+    text-align: center;
 }
+ChatInput {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    margin: 1 0;
+    padding: 0 1;
+    background: $surface;
+    color: $text;
+    border: tall $primary-darken-1;
+}
+
+ChatInput:focus {
+    border: tall $accent;
+}
+
 Label {
     margin: 1 0;
 }
