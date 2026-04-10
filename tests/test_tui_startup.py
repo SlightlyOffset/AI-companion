@@ -50,5 +50,35 @@ class TestTUIStartup(unittest.TestCase):
         self.assertNotIn('pick_profile()', main_block, "pick_profile() still called in __main__ block")
         self.assertNotIn('pick_user_profile()', main_block, "pick_user_profile() still called in __main__ block")
 
+    @patch('menu.get_setting')
+    @patch('menu.TaiMenu.start_tts_worker')
+    @patch('menu.TaiMenu.update_sidebar')
+    @patch('menu.TaiMenu.query_one')
+    @patch('menu.TaiMenu.add_message')
+    def test_load_initial_state_from_settings(self, mock_msg, mock_query, mock_sidebar, mock_tts, mock_get_setting):
+        """
+        Test that load_initial_state attempts to load from settings if paths are None.
+        """
+        import menu
+        from menu import TaiMenu
+        
+        # Mock get_setting to return a valid profile filename
+        def side_effect(key, default=None):
+            if key == "current_character_profile":
+                return "Astgenne.json"
+            if key == "current_user_profile":
+                return "Manganese.json"
+            return default
+        mock_get_setting.side_effect = side_effect
+        
+        app = TaiMenu(char_path=None, user_path=None)
+        # We need to mock open because it will try to open profiles/Astgenne.json
+        with patch('builtins.open', unittest.mock.mock_open(read_data='{"name": "Astgenne"}')):
+            with patch('os.path.exists', return_value=True):
+                app.load_initial_state()
+        
+        self.assertEqual(app.char_path, os.path.join("profiles", "Astgenne.json"))
+        self.assertEqual(app.user_path, os.path.join("user_profiles", "Manganese.json"))
+
 if __name__ == '__main__':
     unittest.main()

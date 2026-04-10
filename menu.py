@@ -334,9 +334,24 @@ class TaiMenu(App):
             pass
 
     def load_initial_state(self) -> None:
-        """Loads profiles and settings based on pre-selected paths."""
+        """Loads profiles and settings based on pre-selected paths or settings.json."""
         if not self.char_path:
-            self.exit()
+            char_profile_name = get_setting("current_character_profile")
+            if char_profile_name:
+                potential_path = os.path.join("profiles", char_profile_name)
+                if os.path.exists(potential_path):
+                    self.char_path = potential_path
+
+        if not self.user_path:
+            user_profile_name = get_setting("current_user_profile")
+            if user_profile_name:
+                potential_path = os.path.join("user_profiles", user_profile_name)
+                if os.path.exists(potential_path):
+                    self.user_path = potential_path
+
+        if not self.char_path:
+            # Still no character path? We'll handle this in the next task by pushing ProfileSelectScreen
+            # For now, we must not exit if we want the TUI to stay alive and show the selection screen later.
             return
 
         with open(self.char_path, "r", encoding="utf-8") as f:
