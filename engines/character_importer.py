@@ -2,6 +2,7 @@ import json
 import os
 import base64
 import re
+import shutil
 from PIL import Image
 from colorama import Fore
 
@@ -54,7 +55,7 @@ class CharacterImporter:
             return None
 
     @staticmethod
-    def convert_to_project_format(st_data):
+    def convert_to_project_format(st_data, avatar_path=None):
         """Maps SillyTavern data to the local profile format."""
         if not st_data:
             return None
@@ -78,6 +79,7 @@ class CharacterImporter:
         # Basic mapping
         profile = {
             "name": char_name,
+            "avatar_path": avatar_path or "img/No_Image_Error.png",
             "alt_names": "",
             "personality_type": replace_placeholders(g("personality")),
             "backstory": replace_placeholders(g("description")),
@@ -96,7 +98,7 @@ class CharacterImporter:
             "system_prompt": f"Character: {char_name}\nPersonality: {replace_placeholders(g('personality'))}\nDescription: {replace_placeholders(g('description'))}\nScenario: {replace_placeholders(g('scenario'))}\n{replace_placeholders(g('system_prompt'))}",
             "good_prompt_modifyer": "Be more friendly and supportive.",
             "bad_prompt_modifyer": "Be more cold and distant.",
-            "preferred_tts_voice": None,
+            "preferred_edge_voice": "en-US-AvaMultilingualNeural",
             "tts_engine": "edge-tts",
             "voice_clone_ref": None,
             "tts_language": "en",
@@ -105,7 +107,8 @@ class CharacterImporter:
             "colors": {
                 "text": "WHITE",
                 "label": "NORMAL",
-                "name_lbl": "magenta"
+                "name_lbl": "magenta",
+                "speech_highlight": "yellow"
             }
         }
 
@@ -122,9 +125,6 @@ class CharacterImporter:
                     if 5 < len(a_clean) < 60 and a_clean not in cleaned_actions:
                         cleaned_actions.append(a_clean)
                 profile["rp_mannerisms"] = cleaned_actions[:5]
-
-        # If still empty, we leave it empty. Better to have no mannerisms than
-        # to have noisy backstory snippets being forced into every message.
 
         # Handle alternate greetings
         alt_greetings = st_data.get("alternate_greetings", [])
@@ -161,8 +161,24 @@ class CharacterImporter:
 def import_character(source_path):
     """Main entry point for importing a character."""
     data = None
+    avatar_path = "img/No_Image_Error.png"
+    
     if source_path.lower().endswith((".png", ".webp")):
         data = CharacterImporter.extract_from_png(source_path)
+        if data and "name" in data:
+            char_name = data["name"]
+            # Create a safe filename for the image
+            safe_name = re.sub(r'[^\w\s-]', '', char_name).strip().replace(' ', '_')
+            ext = os.path.splitext(source_path)[1]
+            dest_image = os.path.join("img", f"{safe_name}{ext}")
+            
+            os.makedirs("img", exist_ok=True)
+            try:
+                shutil.copy2(source_path, dest_image)
+                avatar_path = dest_image.replace("\\", "/") # Use forward slashes for consistency
+            except Exception as e:
+                print(f"{Fore.RED}[ERROR] Failed to copy avatar image: {e}")
+
     elif source_path.lower().endswith(".json"):
         try:
             with open(source_path, "r", encoding="utf-8") as f:
@@ -179,11 +195,13 @@ def import_character(source_path):
         print(f"{Fore.RED}[ERROR] Could not find character data in {source_path}")
         return None
 
-    new_profile = CharacterImporter.convert_to_project_format(data)
+    new_profile = CharacterImporter.convert_to_project_format(data, avatar_path=avatar_path)
     save_path = CharacterImporter.save_profile(new_profile)
 
     if save_path:
         print(f"{Fore.GREEN}[SUCCESS] Imported {new_profile['name']} to {save_path}")
-        print(f"{Fore.YELLOW}[INFO] Conversion may be imperfect. It is recommended to review the profile and adjust any fields as necessary before using it in the application.")
+        if avatar_path != "img/No_Image_Error.png":
+             print(f"{Fore.GREEN}[SUCCESS] Saved avatar to {avatar_path}")
+        print(f"{Fore.YELLOW}[INFO] Conversion may be imperfect. It is recommended to review the profile and adjust any fields as necessary.")
         return save_path
     return None
