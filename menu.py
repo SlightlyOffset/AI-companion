@@ -3,6 +3,7 @@ Main menu and TUI components for the AI Desktop Companion.
 """
 # Standard library imports
 import json
+import re
 import os
 import queue
 import random
@@ -27,7 +28,6 @@ from engines.app_commands import app_commands
 from engines.config import update_setting, get_setting
 from engines.responses import get_respond_stream
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
-from engines.utilities import pick_profile, pick_user_profile
 from engines.memory_v2 import memory_manager
 
 # Ensure the project root is in sys.path
@@ -43,16 +43,6 @@ def set_terminal_appearance(title: str = None):
 
     sys.stdout.flush()
 
-def format_rp(text):
-    """Simple helper to convert *narration* to [i][dim]markup[/dim][/i]."""
-    parts = text.split('*')
-    result = ""
-    for i, part in enumerate(parts):
-        if i % 2 == 1:
-            result += f"[i][dim]{part}[/dim][/i]"
-        else:
-            result += part
-    return result
 
 class ChatInput(TextArea):
     """A multi-line input field that grows vertically up to a limit."""
@@ -104,7 +94,7 @@ class TaiMenu(App):
 
     show_sidebar = reactive(True)
 
-    CSS_PATH = "menu.tcss"
+    CSS_PATH = "tcss/menu.tcss"
 
     EDGE_VOICES = [
         ("Andrew (Male)", "en-US-AndrewNeural"),
@@ -288,6 +278,39 @@ class TaiMenu(App):
         self.populate_models()
         self.populate_voices()
 
+    def format_rp(self, text):
+        """
+        Formats text with basic markdown-like syntax for the TUI.
+        - **bold** -> [b]bold[/b]
+        - *italic* -> [i][dim]italic[/dim][/i] (Narration)
+        - "speech" -> [yellow]"speech"[/yellow] (Highlight)
+        """
+        if not text:
+            return ""
+
+        user = self.user_profile.get("name", "User") if self.user_profile else "User"
+        character = self.character_profile.get("name", "Assistant") if self.character_profile else "Assistant"
+
+        # Replace placeholder tags like {{user}} with actual value
+        text = text.replace("{{user}}", user).replace("{{char}}", character)
+        text = text.replace("{{User}}", user).replace("{{Char}}", character)
+
+        # 1. Bold: **text**
+        text = re.sub(r'\*\*(.*?)\*\*', r'[b]\1[/b]', text, flags=re.DOTALL)
+
+        # 2. Italic/Narration: *text* (matches single * only, ensuring it's not part of **)
+        text = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'[i][dim]\1[/dim][/i]', text, flags=re.DOTALL)
+
+        # 3. Speech: "text" or “text” -> Highlight dialogue
+        # Check top-level first, then inside 'colors' dictionary
+        speech_color = self.character_profile.get("speech_highlight")
+        if not speech_color:
+            speech_color = self.character_profile.get("colors", {}).get("speech_highlight", "yellow")
+            
+        text = re.sub(r'["“](.*?)["”]', fr'[{speech_color}]"\1"[/{speech_color}]', text, flags=re.DOTALL)
+
+        return text
+
     def populate_models(self) -> None:
         """Fetch available models from Ollama and populate the Select widget."""
         try:
@@ -386,7 +409,7 @@ class TaiMenu(App):
         starter_messages = self.character_profile.get("starter_messages", [])
         if starter_messages:
             random.shuffle(starter_messages)
-            self.add_message(format_rp(starter_messages[0]), role="assistant")
+            self.add_message(self.format_rp(starter_messages[0]), role="assistant")
             memory_manager.save_history(self.history_profile_name, [{"role": "assistant",
                                                                      "content": starter_messages[0]}],
                                         mood_score=self.character_profile.get("relationship_score", 0))
@@ -400,7 +423,7 @@ class TaiMenu(App):
                 role = msg_data.get("role", "assistant")
                 content = msg_data.get("content", "")
                 if role != "system":
-                    content = format_rp(content)
+                    content = self.format_rp(content)
                 self.add_message(content, role=role)
             self.add_message("--- Recap complete ---", role="system")
         else:
@@ -549,7 +572,7 @@ class TaiMenu(App):
         if not message: return
 
         # Format user message for display
-        display_message = format_rp(message)
+        display_message = self.format_rp(message)
         self.add_message(display_message, role="user")
 
         # Handle commands (original message)
@@ -624,7 +647,7 @@ class TaiMenu(App):
             current_buffer += chunk
 
             # Update UI from thread
-            self.app.call_from_thread(ai_msg.update, f"[bold magenta]{self.ch_name}:[/bold magenta]\n{format_rp(full_response)}")
+            self.app.call_from_thread(ai_msg.update, f"[bold magenta]{self.ch_name}:[/bold magenta]\n{self.format_rp(full_response)}")
             self.app.call_from_thread(container.scroll_end, animate=False)
 
             # ---------------------------------------------------------------
