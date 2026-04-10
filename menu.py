@@ -10,6 +10,7 @@ import time
 import sys
 import platform
 import ollama
+import tempfile
 from pathlib import Path
 
 
@@ -367,7 +368,8 @@ class TaiMenu(App):
             data = self.tts_text_queue.get()
             if data is None: break
             text, voice, engine, clone_ref, language = data
-            temp_filename = os.path.join(os.environ.get("TEMP", "/tmp"), f"tts_{time.time()}.mp3")
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+                temp_filename = temp_file.name
             if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref, language=language):
                 self.audio_file_queue.put(temp_filename)
             self.tts_text_queue.task_done()
