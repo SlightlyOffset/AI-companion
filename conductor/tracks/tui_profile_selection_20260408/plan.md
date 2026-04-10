@@ -10,10 +10,11 @@
 - [x] Implement a `ListView` or `OptionList` to display available `.json` files from the `profiles/` directory. cb985e6
 - [x] Add event handlers to capture the user's selection. cb985e6
 
-## Phase 3: Profile Switching Logic
-- [ ] Add a `ctrl+p` binding to open the selection screen.
-- [ ] Implement a callback or message handler to process the selected profile from the screen.
-- [ ] Create a `switch_profile(char_path)` method in `TaiMenu` to handle resetting the chat, updating settings, and running the recap.
+## Phase 3: Integration and Callbacks [checkpoint: 348dc82]
+- [x] Add a `ctrl+o` binding to open the selection screen. 348dc82
+- [x] Implement a callback or message handler to process the selected profile from the screen. 348dc82
+- [x] Create a `switch_profile(char_path)` method in `TaiMenu` to handle resetting the chat, updating settings, and running the recap. 348dc82
+
 
 ## Phase 4: Validation
 - [ ] Test cold boot (no settings) vs warm boot (existing settings).
