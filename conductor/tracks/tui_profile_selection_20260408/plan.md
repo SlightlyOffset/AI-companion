@@ -5,10 +5,10 @@
 - [x] Update `TaiMenu.on_mount` to attempt loading profiles from `settings.json`. 4dbc7a7
 - [x] If loading fails, push the `ProfileSelectScreen` immediately. d2c7021
 
-## Phase 2: ProfileSelectScreen Implementation
-- [ ] Review and integrate existing `ProfileSelectScreen.py` into the `menu.py` structure (or import it properly).
-- [ ] Implement a `ListView` or `OptionList` to display available `.json` files from the `profiles/` directory.
-- [ ] Add event handlers to capture the user's selection.
+## Phase 2: ProfileSelectScreen Implementation [checkpoint: cb985e6]
+- [x] Review and integrate existing `ProfileSelectScreen.py` into the `menu.py` structure (or import it properly). cb985e6
+- [x] Implement a `ListView` or `OptionList` to display available `.json` files from the `profiles/` directory. cb985e6
+- [x] Add event handlers to capture the user's selection. cb985e6
 
 ## Phase 3: Profile Switching Logic
 - [ ] Add a `ctrl+p` binding to open the selection screen.
