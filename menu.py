@@ -213,11 +213,27 @@ class TaiMenu(App):
         
         if not self.char_path:
             from ProfileSelectScreen import ProfileSelect
-            self.push_screen(ProfileSelect())
+            self.push_screen(ProfileSelect(), callback=self.on_profile_selected)
             return
 
         self.populate_models()
         self.populate_voices()
+
+    def on_profile_selected(self, result: dict) -> None:
+        """Callback handled when ProfileSelect screen is dismissed."""
+        if result:
+            char_name = result.get("character")
+            user_name = result.get("user")
+            
+            if char_name:
+                self.char_path = os.path.join("profiles", char_name)
+            if user_name:
+                self.user_path = os.path.join("user_profiles", user_name)
+                
+            # Now that we have paths, finish initialization
+            self.load_initial_state()
+            self.populate_models()
+            self.populate_voices()
 
     def populate_models(self) -> None:
         """Fetch available models from Ollama and populate the Select widget."""

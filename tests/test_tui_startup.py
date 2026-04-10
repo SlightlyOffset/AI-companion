@@ -103,5 +103,26 @@ class TestTUIStartup(unittest.TestCase):
         # We expect push_screen to be called once
         self.assertTrue(mock_push.called)
 
+    @patch('menu.TaiMenu.load_initial_state')
+    @patch('menu.TaiMenu.populate_models')
+    @patch('menu.TaiMenu.populate_voices')
+    def test_on_profile_selected_updates_paths(self, mock_voices, mock_models, mock_load):
+        """
+        Test that on_profile_selected correctly updates character and user paths.
+        """
+        from menu import TaiMenu
+        app = TaiMenu(char_path=None, user_path=None)
+        
+        result = {
+            "character": "Eira.json",
+            "user": "Manganese.json"
+        }
+        
+        with patch('menu.TaiMenu.start_tts_worker'):
+            app.on_profile_selected(result)
+        
+        self.assertEqual(app.char_path, os.path.join("profiles", "Eira.json"))
+        self.assertEqual(app.user_path, os.path.join("user_profiles", "Manganese.json"))
+
 if __name__ == '__main__':
     unittest.main()
