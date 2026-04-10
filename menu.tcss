@@ -21,6 +21,12 @@
     padding: 1;
     overflow-y: auto;
 }
+.avatar_container {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
 #avatar_portrait_character, #avatar_portrait_user {
     width: 23.33;
     height: 11.67;

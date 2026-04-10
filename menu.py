@@ -96,6 +96,7 @@ class TaiMenu(App):
 
     BINDINGS = [
         ("ctrl+b", "toggle_sidebar", "Toggle Sidebar"),
+        ("ctrl+o", "open_profile_select", "Profiles"),
         ("ctrl+q", "quit", "Quit"),
     ]
 
@@ -139,6 +140,11 @@ class TaiMenu(App):
         """Toggle the status sidebar visibility."""
         self.show_sidebar = not self.show_sidebar
 
+    def action_open_profile_select(self) -> None:
+        """Open the profile selection screen."""
+        from ProfileSelectScreen import ProfileSelect
+        self.push_screen(ProfileSelect(), callback=self.on_profile_selected)
+
     def compose(self) -> ComposeResult:
         # Get initial avatar path for character and user profiles (if they exist) to display in the sidebar
         init_avatar = "img/No_Image_Error.png"
@@ -172,7 +178,8 @@ class TaiMenu(App):
                 yield ChatInput(id="user_input")
             with Vertical(id="status_sidebar"):
                 yield Label("--- Companion ---", classes="sidebar_header")
-                yield Image(init_avatar, id="avatar_portrait_character")
+                with Vertical(id="char_avatar_wrap", classes="avatar_container"):
+                    yield Image(init_avatar, id="avatar_portrait_character")
                 yield Label("Name: [bold magenta]None[/bold magenta]", id="lbl_char")
                 yield Label("Mood: [bold]Neutral[/bold]", id="lbl_mood")
                 yield Label("Relationship:", classes="sidebar_label")
@@ -180,7 +187,8 @@ class TaiMenu(App):
                 yield Label("Score: [bold]0[/bold]", id="lbl_rel")
                 
                 yield Label("--- User ---", classes="sidebar_header")
-                yield Image(init_user_avatar, id="avatar_portrait_user")
+                with Vertical(id="user_avatar_wrap", classes="avatar_container"):
+                    yield Image(init_user_avatar, id="avatar_portrait_user")
                 yield Label("User: [bold cyan]None[/bold cyan]", id="lbl_user")
 
                 yield Label("--- Settings ---", classes="sidebar_header")
@@ -225,15 +233,23 @@ class TaiMenu(App):
             char_name = result.get("character")
             user_name = result.get("user")
             
-            if char_name:
-                self.char_path = os.path.join("profiles", char_name)
-            if user_name:
-                self.user_path = os.path.join("user_profiles", user_name)
-                
-            # Now that we have paths, finish initialization
-            self.load_initial_state()
-            self.populate_models()
-            self.populate_voices()
+            char_path = os.path.join("profiles", char_name) if char_name else None
+            user_path = os.path.join("user_profiles", user_name) if user_name else None
+            
+            self.switch_profile(char_path, user_path)
+
+    def switch_profile(self, char_path: str, user_path: str = None) -> None:
+        """Resets the app state and loads a new profile."""
+        if not char_path:
+            return
+
+        self.char_path = char_path
+        self.user_path = user_path
+        
+        # Re-initialize state
+        self.load_initial_state()
+        self.populate_models()
+        self.populate_voices()
 
     def populate_models(self) -> None:
         """Fetch available models from Ollama and populate the Select widget."""
@@ -376,6 +392,15 @@ class TaiMenu(App):
             # For now, we must not exit if we want the TUI to stay alive and show the selection screen later.
             return
 
+        # Clear existing chat if any (for profile switching)
+        try:
+            chat_list = self.query_one("#chat_list")
+            # We can't just clear(), we need to remove children
+            for child in chat_list.children:
+                child.remove()
+        except Exception:
+            pass # App might not be fully mounted yet
+
         with open(self.char_path, "r", encoding="utf-8") as f:
             self.character_profile = json.load(f)
 
@@ -394,7 +419,7 @@ class TaiMenu(App):
             self.user_name = "User"
 
         self.update_sidebar()
-        self.query_one("#init_msg").update(f"[bold green]System:[/bold green] Loaded character profile: [bold]{self.ch_name}[/bold]")
+        self.add_message(f"Loaded character profile: [bold]{self.ch_name}[/bold]", role="system")
 
         # Print character's starter messages and save to memory (if any, which should always be any)
         # Only do this if the history doesn't exist yet, to avoid repeating starter messages on every launch
@@ -410,6 +435,33 @@ class TaiMenu(App):
         self.add_message("Tip: Use [bold]Ctrl+J[/bold] for a newline.", role="tip_message")
 
     def update_sidebar(self):
+        """Update the sidebar content including avatars and relationship stats."""
+        # Refresh avatars
+        try:
+            # Character Avatar
+            char_avatar_path = self.character_profile.get("avatar_path", "img/No_Image_Error.png")
+            if not os.path.exists(char_avatar_path): char_avatar_path = "img/No_Image_Error.png"
+            
+            char_wrap = self.query_one("#char_avatar_wrap")
+            # Clear and remount to force textual-image to reload
+            for child in char_wrap.children:
+                child.remove()
+            char_wrap.mount(Image(char_avatar_path, id="avatar_portrait_character"))
+
+            # User Avatar
+            user_avatar_path = "img/No_Image_Error.png"
+            if self.user_profile:
+                user_avatar_path = self.user_profile.get("avatar_path", "img/No_Image_Error.png")
+                if not os.path.exists(user_avatar_path): user_avatar_path = "img/No_Image_Error.png"
+            
+            user_wrap = self.query_one("#user_avatar_wrap")
+            for child in user_wrap.children:
+                child.remove()
+            user_wrap.mount(Image(user_avatar_path, id="avatar_portrait_user"))
+        except Exception as e:
+            # If widgets are not found (e.g., during initialization), skip
+            pass
+
         rel = self.character_profile.get("relationship_score", 0)
         
         # Determine relationship label

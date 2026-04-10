@@ -124,5 +124,35 @@ class TestTUIStartup(unittest.TestCase):
         self.assertEqual(app.char_path, os.path.join("profiles", "Eira.json"))
         self.assertEqual(app.user_path, os.path.join("user_profiles", "Manganese.json"))
 
+    @patch('menu.TaiMenu.push_screen')
+    def test_action_open_profile_select_calls_push_screen(self, mock_push):
+        """
+        Test that action_open_profile_select (triggered by ctrl+o) calls push_screen with ProfileSelect.
+        """
+        from menu import TaiMenu
+        app = TaiMenu(char_path="some_path", user_path="some_user_path")
+        
+        with patch('menu.TaiMenu.start_tts_worker'):
+            app.action_open_profile_select()
+        
+        self.assertTrue(mock_push.called)
+
+    @patch('menu.TaiMenu.load_initial_state')
+    @patch('menu.TaiMenu.populate_models')
+    @patch('menu.TaiMenu.populate_voices')
+    def test_switch_profile_updates_and_reinitializes(self, mock_voices, mock_models, mock_load):
+        """
+        Test that switch_profile updates paths and calls re-initialization methods.
+        """
+        from menu import TaiMenu
+        app = TaiMenu(char_path="old_char.json", user_path="old_user.json")
+        
+        with patch('menu.TaiMenu.start_tts_worker'):
+            app.switch_profile("new_char.json", "new_user.json")
+        
+        self.assertEqual(app.char_path, "new_char.json")
+        self.assertEqual(app.user_path, "new_user.json")
+        self.assertTrue(mock_load.called)
+
 if __name__ == '__main__':
     unittest.main()
