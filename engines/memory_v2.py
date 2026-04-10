@@ -34,6 +34,11 @@ class HistoryManager:
         filename = self._get_filename(profile_name)
         return os.path.exists(filename)
 
+    def get_history_length(self, profile_name: str) -> int:
+        """Returns the number of messages in the history."""
+        data = self.get_full_data(profile_name)
+        return len(data.get("history", [])) if data else 0
+
     def save_history(self, profile_name: str, history: list, mood_score: int = 0) -> None:
         """
         Saves history to a JSON file with metadata.
