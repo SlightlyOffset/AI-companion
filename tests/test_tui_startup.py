@@ -80,5 +80,28 @@ class TestTUIStartup(unittest.TestCase):
         self.assertEqual(app.char_path, os.path.join("profiles", "Astgenne.json"))
         self.assertEqual(app.user_path, os.path.join("user_profiles", "Manganese.json"))
 
+    @patch('menu.get_setting')
+    @patch('menu.TaiMenu.start_tts_worker')
+    @patch('menu.TaiMenu.update_sidebar')
+    @patch('menu.TaiMenu.query_one')
+    @patch('menu.TaiMenu.add_message')
+    @patch('menu.TaiMenu.push_screen')
+    def test_push_profile_select_if_loading_fails(self, mock_push, mock_msg, mock_query, mock_sidebar, mock_tts, mock_get_setting):
+        """
+        Test that push_screen(ProfileSelect()) is called if load_initial_state fails to find paths.
+        """
+        import menu
+        from menu import TaiMenu
+        
+        # Mock get_setting to return None
+        mock_get_setting.return_value = None
+        
+        app = TaiMenu(char_path=None, user_path=None)
+        with patch('os.path.exists', return_value=False):
+            app.on_mount()
+        
+        # We expect push_screen to be called once
+        self.assertTrue(mock_push.called)
+
 if __name__ == '__main__':
     unittest.main()

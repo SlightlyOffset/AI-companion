@@ -210,6 +210,12 @@ class TaiMenu(App):
         """Initializes the app and load character profiles."""
         self.start_tts_worker()
         self.load_initial_state()
+        
+        if not self.char_path:
+            from ProfileSelectScreen import ProfileSelect
+            self.push_screen(ProfileSelect())
+            return
+
         self.populate_models()
         self.populate_voices()
 
