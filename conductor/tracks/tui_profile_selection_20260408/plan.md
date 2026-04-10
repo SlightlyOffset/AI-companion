@@ -2,7 +2,7 @@
 
 ## Phase 1: Startup Refactoring
 - [x] Remove `pick_profile` and `pick_user_profile` from the `__main__` block in `menu.py`. d390df1
-- [ ] Update `TaiMenu.on_mount` to attempt loading profiles from `settings.json`.
+- [x] Update `TaiMenu.on_mount` to attempt loading profiles from `settings.json`. 4dbc7a7
 - [ ] If loading fails, push the `ProfileSelectScreen` immediately.
 
 ## Phase 2: ProfileSelectScreen Implementation
