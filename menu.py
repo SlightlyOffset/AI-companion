@@ -548,8 +548,5 @@ class TaiMenu(App):
 if __name__ == "__main__":
     print(f"Running on: {platform.system()} {platform.release()}")
     set_terminal_appearance(title="t.ai")
-    c_path = pick_profile()
-    u_path = pick_user_profile() if c_path else None
-    if c_path:
-        app = TaiMenu(char_path=c_path, user_path=u_path)
-        app.run()
+    app = TaiMenu(char_path=None, user_path=None)
+    app.run()
