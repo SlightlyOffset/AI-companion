@@ -1,6 +1,7 @@
 """
 Main menu and TUI components for the AI Desktop Companion.
 """
+# Standard library imports
 import json
 import os
 import queue
@@ -9,13 +10,10 @@ import threading
 import time
 import sys
 import platform
-import ollama
 from pathlib import Path
 
-
-# Ensure the project root is in sys.path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+# Third-party imports
+import ollama
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Input, Static, Label, Select, ProgressBar, Switch, TextArea
 from textual_image.widget import Image
@@ -24,6 +22,7 @@ from textual import work, events
 from textual.reactive import reactive
 from textual.message import Message
 
+# First-party imports
 from engines.app_commands import app_commands
 from engines.config import update_setting, get_setting
 from engines.responses import get_respond_stream
@@ -31,6 +30,8 @@ from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
 from engines.utilities import pick_profile, pick_user_profile
 from engines.memory_v2 import memory_manager
 
+# Ensure the project root is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def set_terminal_appearance(title: str = None):
     """
