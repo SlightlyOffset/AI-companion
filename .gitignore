@@ -51,6 +51,8 @@ voices/
 # App settings
 settings.json
 
+TODO.md
+
 # gemini-cli settings
 .gemini/
 
