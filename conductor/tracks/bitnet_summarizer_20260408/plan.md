@@ -10,8 +10,8 @@
 - [x] Use `app.call_from_thread` to update the chat log with the results. (d68ce72)
 
 ## Phase 3: Visual Polish
-- [ ] Apply specific styling to the "Memory Core" readout.
-- [ ] Add a "Summarization in progress..." spinner or status label if possible.
+- [x] Apply specific styling to the "Memory Core" readout. (804fcca)
+- [x] Add a "Summarization in progress..." spinner or status label if possible. (804fcca)
 
 ## Phase 4: Validation
 - [ ] Test with a profile containing 50+ messages.
