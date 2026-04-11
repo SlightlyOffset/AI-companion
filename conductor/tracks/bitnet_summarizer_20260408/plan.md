@@ -14,5 +14,5 @@
 - [x] Add a "Summarization in progress..." spinner or status label if possible. (804fcca)
 
 ## Phase 4: Validation
-- [ ] Test with a profile containing 50+ messages.
-- [ ] Verify that the summary is coherent and useful for the AI's current context.
+- [x] Test with a profile containing 50+ messages. (de3c0b7)
+- [x] Verify that the summary is coherent and useful for the AI's current context. (de3c0b7)
