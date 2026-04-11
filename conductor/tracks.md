@@ -14,7 +14,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Implement BitNet-based context summarization for long chat histories in t.ai**
+- [x] **Track: Implement BitNet-based context summarization for long chat histories in t.ai**
 *Link: [./tracks/bitnet_summarizer_20260408/](./tracks/bitnet_summarizer_20260408/)*
 
 ---
