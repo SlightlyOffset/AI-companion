@@ -48,9 +48,11 @@
     margin: 1 0 0 0;
     color: $text-disabled;
     width: 100%;
+    text-align: center;
 }
 #lbl_char, #lbl_mood, #lbl_rel, #lbl_user {
     width: 100%;
+    text-align: center;
 }
 .setting_row {
     height: auto;
@@ -98,13 +100,15 @@
     color: $success;
     margin: 1 0;
     width: 100%;
-    text-align: center;
+    text-align: left;
+    padding: 0 1;
 }
 .tip_msg {
     color: $warning;
     margin: 1 0;
     width: 100%;
-    text-align: center;
+    text-align: left;
+    padding: 0 1;
 }
 ChatInput {
     width: 100%;
