@@ -2,7 +2,7 @@
 
 A lightweight, highly immersive, profile-based AI companion that lives in your terminal. Built for roleplayers and AI enthusiasts who want a character that feels alive, remembers the past, and has a distinct personality.
 
-***Note**: Definally not c.ai but just to spite how c.ai is undergoing an enshitification cycle.*
+***Note**: Definitely not c.ai but just to spite how c.ai is undergoing an enshitification cycle.*
 
 ---
 
