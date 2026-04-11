@@ -438,7 +438,7 @@ class TaiMenu(App):
             older_history = messages_history[:-5]
             recent_history = messages_history[-5:]
 
-            self.add_message(f"--- Recap: {len(messages_history)} messages. Analyzing past memories... ---", role="system")
+            self.add_message("--- [bold cyan]Analyzing past memories...[/bold cyan] ---", role="system")
             self.summarize_and_display(older_history, recent_history)
 
     @work(thread=True)
@@ -580,6 +580,8 @@ class TaiMenu(App):
         container = self.query_one("#chat_list")
         if role == "system":
             container.mount(Static(text, markup=True, classes="system_msg"))
+        elif role == "summary":
+            container.mount(Static(text, markup=True, classes="summary_msg"))
         elif role == "tip_message":
             container.mount(Static(text, markup=True, classes="tip_msg"))
         else:

@@ -103,6 +103,13 @@
     text-align: left;
     padding: 0 1;
 }
+.summary_msg {
+    color: $warning;
+    border: double $warning;
+    margin: 1 0;
+    width: 100%;
+    padding: 1;
+}
 .tip_msg {
     color: $warning;
     margin: 1 0;
