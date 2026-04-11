@@ -5,9 +5,9 @@
 - [x] Define the summarization prompt (concise bullet points, mood tracking). (ee1ca2b)
 
 ## Phase 2: Recap Logic Refactor
-- [ ] Update `run_recap` in `menu.py` to handle the history split (older messages vs. recent 5).
-- [ ] Wrap the summarization call in a `@work(thread=True)` worker.
-- [ ] Use `app.call_from_thread` to update the chat log with the results.
+- [x] Update `run_recap` in `menu.py` to handle the history split (older messages vs. recent 5). (d68ce72)
+- [x] Wrap the summarization call in a `@work(thread=True)` worker. (d68ce72)
+- [x] Use `app.call_from_thread` to update the chat log with the results. (d68ce72)
 
 ## Phase 3: Visual Polish
 - [ ] Apply specific styling to the "Memory Core" readout.
