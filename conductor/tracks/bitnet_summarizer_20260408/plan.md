@@ -1,0 +1,18 @@
+# Implementation Plan - BitNet Context Summarization
+
+## Phase 1: Engine Preparation
+- [x] Create a `generate_summary` helper in `engines/responses.py` (or locally in `menu.py`) that interfaces with Ollama. (90cac64)
+- [ ] Define the summarization prompt (concise bullet points, mood tracking).
+
+## Phase 2: Recap Logic Refactor
+- [ ] Update `run_recap` in `menu.py` to handle the history split (older messages vs. recent 5).
+- [ ] Wrap the summarization call in a `@work(thread=True)` worker.
+- [ ] Use `app.call_from_thread` to update the chat log with the results.
+
+## Phase 3: Visual Polish
+- [ ] Apply specific styling to the "Memory Core" readout.
+- [ ] Add a "Summarization in progress..." spinner or status label if possible.
+
+## Phase 4: Validation
+- [ ] Test with a profile containing 50+ messages.
+- [ ] Verify that the summary is coherent and useful for the AI's current context.
