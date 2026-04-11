@@ -2,7 +2,7 @@
 
 ## Phase 1: Engine Preparation
 - [x] Create a `generate_summary` helper in `engines/responses.py` (or locally in `menu.py`) that interfaces with Ollama. (90cac64)
-- [ ] Define the summarization prompt (concise bullet points, mood tracking).
+- [x] Define the summarization prompt (concise bullet points, mood tracking). (ee1ca2b)
 
 ## Phase 2: Recap Logic Refactor
 - [ ] Update `run_recap` in `menu.py` to handle the history split (older messages vs. recent 5).
