@@ -39,7 +39,7 @@ A lightweight, highly immersive, profile-based AI companion that lives in your t
 
 ### Prerequisites
 
-* **Python 3.11.10** (recommended)
+* **Python 3.10+**
 * **Ollama** (Local LLM runner)
 * **Microsoft Edge** (For neural TTS fallback)
 * *(Optional)* **Google Colab account** for cloud offloading.
@@ -56,7 +56,7 @@ A lightweight, highly immersive, profile-based AI companion that lives in your t
 2. **Install dependencies:**
 
     ```bash
-    pip install colorama ollama requests edge-tts pyttsx3 textual
+    pip install -r requirements.txt
     ```
 
 3. **Pull the recommended model:**
@@ -67,15 +67,12 @@ A lightweight, highly immersive, profile-based AI companion that lives in your t
 
 ### Running the Companion
 
-For the full immersive TUI experience:
-```bash
-python menu.py
-```
-
-For the classic CLI experience:
+Simply run the main launcher to perform dependency checks and start the TUI:
 ```bash
 python main.py
 ```
+
+*(Note: The old CLI is still available via `python legacy_main.py` for reference.)*
 
 *(If using the Colab Bridge, start the respective Jupyter notebooks in `/colab_bridge` first, and update your `settings.json` with the generated tunneling URLs.)*
 
@@ -86,9 +83,13 @@ python main.py
 Inside the chat, you can use the following operational commands:
 
 * `//help`: Show all commands.
+* `//mode`: Toggle between RP and Casual modes.
 * `//reset`: Clear the current conversation history.
-* `//change_character`: Swap to a different profile (Glitch, Astgenne, Eira, etc.).
+* `//change_character`: Swap to a different character profile.
+* `//change_user_profile`: Swap to a different user profile.
+* `//import_card <path>`: Import a SillyTavern character card.
 * `//show_settings`: View current app configuration.
+* `//toggle_clear_on_start`: Toggle console clearing at launch.
 * `//restart`: Cleanly reboot the application.
 
 ---
@@ -102,6 +103,7 @@ Edit `settings.json` to customize your experience:
 * `speak_narration`: Choose if the Narrator should speak the actions or only text dialogue.
 * `memory_limit`: Control short-term memory limit (messages fed per prompt).
 * `auto_recap_on_start`: Let the AI summarize the previous chat context upon booting.
+* `interaction_mode`: Set default mode (`rp` or `casual`).
 
 ---
 
@@ -109,10 +111,10 @@ Edit `settings.json` to customize your experience:
 
 * [x] **Phase 1-3**: Core Terminal logic, Mood Engine, Persistent Memory, Profiles, and Relationships.
 * [x] **Phase 4**: Cloud Computing (Colab Bridge), Voice & Response Streaming, Session Recaps, and Voice Cloning (XTTS v2).
-* [~] **Phase 5**: TUI Overhaul (**t.ai**), minimalist bubble layout, and real-time streaming UI.
+* [x] **Phase 5 (Alpha)**: TUI Overhaul (**t.ai**), Dynamic Scene Memory, and mood-locked RP.
 * [ ] **Live2D Integration**: Map mood scores and sentiment to sprite changes and animations.
 * [ ] **Speech-to-Text**: Full voice control for hands-free conversations.
-* [ ] **Advanced Interactions**: Dynamic Scene Memory (Physical location/time tracking).
+* [ ] **Context Summarization**: Long-term memory compression via automated summaries.
 
 ---
 
