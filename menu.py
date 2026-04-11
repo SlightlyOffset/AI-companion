@@ -29,6 +29,7 @@ from engines.config import update_setting, get_setting
 from engines.responses import get_respond_stream
 from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
 from engines.memory_v2 import memory_manager
+from engines.prompts import get_mood_rule
 
 # Ensure the project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -295,7 +296,10 @@ class TaiMenu(App):
         text = text.replace("{{user}}", user).replace("{{char}}", character)
         text = text.replace("{{User}}", user).replace("{{Char}}", character)
 
-        # 1. Bold: **text**
+        # 1. Strip [SCENE: ...] tags
+        text = re.sub(r'\[SCENE:\s*.*?\]', '', text, flags=re.IGNORECASE).strip()
+
+        # 2. Bold: **text**
         text = re.sub(r'\*\*(.*?)\*\*', r'[b]\1[/b]', text, flags=re.DOTALL)
 
         # 2. Italic/Narration: *text* (matches single * only, ensuring it's not part of **)
@@ -530,14 +534,10 @@ class TaiMenu(App):
 
         rel = self.character_profile.get("relationship_score", 0)
         
-        # Determine relationship label
-        if rel >= 80: rel_label, rel_color = "Soulmate / Bestie", "#ff7aeb"
-        elif rel >= 40: rel_label, rel_color = "Close Friend", "#cc7aff"
-        elif rel >= 15: rel_label, rel_color = "Friendly / Liked", "#7fff7d"
-        elif rel >= -15: rel_label, rel_color = "Neutral / Acquaintance", "#6e88ff"
-        elif rel >= -40: rel_label, rel_color = "Annoyance / Disliked", "#ffb163"
-        elif rel >= -80: rel_label, rel_color = "Hostile / Enemy", "#ff4d3d"
-        else: rel_label, rel_color = "Arch-Nemesis / Despised", "#820004"
+        # Determine relationship label and color from centralized config
+        mood_rule = get_mood_rule(rel)
+        rel_label = mood_rule.get("label", "Neutral / Acquaintance")
+        rel_color = mood_rule.get("color", "#6e88ff")
 
         self.query_one("#lbl_char").update(f"Name: [bold {self.char_name_lbl_color}]{self.ch_name}[/bold {self.char_name_lbl_color}]")
         self.query_one("#lbl_mood").update(f"Mood: [bold {rel_color}]{rel_label}[/bold {rel_color}]")

@@ -39,7 +39,7 @@ class HistoryManager:
         data = self.get_full_data(profile_name)
         return len(data.get("history", [])) if data else 0
 
-    def save_history(self, profile_name: str, history: list, mood_score: int = 0) -> None:
+    def save_history(self, profile_name: str, history: list, mood_score: int = 0, current_scene: str = "Unknown Location") -> None:
         """
         Saves history to a JSON file with metadata.
 
@@ -47,6 +47,7 @@ class HistoryManager:
             profile_name (str): The name of the character.
             history (list): List of message dictionaries.
             mood_score (int): Current relationship/mood score.
+            current_scene (str): The physical location or state of the RP.
         """
         filename = self._get_filename(profile_name)
         now = datetime.now()
@@ -55,7 +56,8 @@ class HistoryManager:
         data_to_save = {
             "metadata": {
                 "last_interaction": current_time,
-                "mood_score": mood_score
+                "mood_score": mood_score,
+                "current_scene": current_scene
             },
             "history": history
         }
@@ -69,8 +71,17 @@ class HistoryManager:
         Handles transition from the old format (list of messages).
         """
         filename = self._get_filename(profile_name)
+        default_data = {
+            "metadata": {
+                "last_interaction": None,
+                "mood_score": 0,
+                "current_scene": "Unknown Location"
+            },
+            "history": []
+        }
+        
         if not os.path.exists(filename):
-            return {"metadata": {}, "history": []}
+            return default_data
 
         try:
             with open(filename, "r", encoding="UTF-8") as f:
@@ -86,13 +97,25 @@ class HistoryManager:
                             break
 
                     return {
-                        "metadata": {"last_interaction": last_time},
+                        "metadata": {
+                            "last_interaction": last_time,
+                            "mood_score": 0,
+                            "current_scene": "Unknown Location"
+                        },
                         "history": [m for m in data if m.get("role") != "system"]
                     }
 
+                # Ensure all metadata fields exist
+                if "metadata" not in data:
+                    data["metadata"] = default_data["metadata"]
+                else:
+                    for key, val in default_data["metadata"].items():
+                        if key not in data["metadata"]:
+                            data["metadata"][key] = val
+
                 return data
         except (json.JSONDecodeError, Exception):
-            return {"metadata": {}, "history": []}
+            return default_data
 
     def load_history(self, profile_name: str, limit: int = None) -> list:
         """

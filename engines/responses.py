@@ -143,22 +143,26 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     if not history_profile_name:
         history_profile_name = name # Fallback to display name
 
-    # Load history, filtering out internal system timestamps
+    # Load history and metadata
+    full_data = memory_manager.get_full_data(history_profile_name)
+    current_scene = full_data.get("metadata", {}).get("current_scene", "Unknown Location")
+    
     limit = get_setting("memory_limit", 15)
     history = memory_manager.load_history(history_profile_name, limit=limit)
 
-    # Determine relationship label and instructions
+    # Determine relationship score and interaction mode
     rel_score = profile.get("relationship_score", 0)
     interaction_mode = get_setting("interaction_mode", "rp")
 
-    if rel_score >= 80: rel_label = "Soulmate / Bestie"
-
-    elif rel_score >= 40: rel_label = "Close Friend"
-    elif rel_score >= 15: rel_label = "Friendly / Liked"
-    elif rel_score >= -15: rel_label = "Neutral / Acquaintance"
-    elif rel_score >= -40: rel_label = "Annoyance / Disliked"
-    elif rel_score >= -80: rel_label = "Hostile / Enemy"
-    else: rel_label = "Arch-Nemesis / Despised"
+    # Handle Dynamic Scene Context
+    scene_instruction = f"CURRENT SCENE: {current_scene}. Keep this context in mind."
+    if interaction_mode == "rp":
+        scene_instruction += " If the location or activity changes significantly, append [SCENE: new location] at the VERY end of your response."
+    
+    if system_extra_info:
+        system_extra_info = f"{scene_instruction}\n{system_extra_info}"
+    else:
+        system_extra_info = scene_instruction
 
     # Set behavioral requirements based on the Mood Engine's 'should_obey' decision
     if should_obey is not None:
@@ -173,7 +177,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         tone_mod = "Maintain a balanced tone."
 
     # Construct the master system instruction
-    system_content = build_system_prompt(profile, rel_score, rel_label, action_req, tone_mod, interaction_mode, system_extra_info)
+    system_content = build_system_prompt(profile, rel_score, action_req, tone_mod, interaction_mode, system_extra_info)
 
     # Compile message list for the LLM
     messages = [{'role': 'system', 'content': system_content}]
@@ -207,6 +211,14 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         score_change = get_sentiment_score(user_input, model, remote_url, profile)
         reply = full_reply.strip()
 
+        # Parse for scene updates
+        new_scene = current_scene
+        scene_match = re.search(r'\[SCENE:\s*(.*?)\]', reply)
+        if scene_match:
+            new_scene = scene_match.group(1).strip()
+            # Clean the tag from the final saved history
+            reply = re.sub(r'\[SCENE:\s*.*?\]', '', reply).strip()
+
         # Persist the relationship update
         if profile_path and score_change != 0:
             update_profile_score(profile_path, score_change)
@@ -215,7 +227,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         full_history = memory_manager.load_history(history_profile_name)
         full_history.append({'role': 'user', 'content': user_input})
         full_history.append({'role': 'assistant', 'content': reply})
-        memory_manager.save_history(history_profile_name, full_history, mood_score=rel_score)
+        memory_manager.save_history(history_profile_name, full_history, mood_score=rel_score, current_scene=new_scene)
 
     except Exception as e:
         yield f"\n[BRAIN ERROR] {str(e)}"

@@ -8,6 +8,34 @@ import os
 
 from engines.utilities import replace_placeholders
 
+RP_RULES_PATH = "response_rule/rp_rule.md"
+CASUAL_RULES_PATH = "response_rule/casual_rule.md"
+MOOD_INTENSITY_PATH = "response_rule/mood_intensity.json"
+
+def get_mood_rule(rel_score: int) -> dict:
+    """
+    Loads the mood_intensity.json and returns the correct rule object
+    based on the current relationship score.
+    """
+    if not os.path.exists(MOOD_INTENSITY_PATH):
+        return {}
+    
+    try:
+        with open(MOOD_INTENSITY_PATH, "r", encoding="UTF-8") as f:
+            intensity_rules = json.load(f)
+            
+        # Sort by min_score descending to find the highest bracket the score falls into
+        sorted_rules = sorted(intensity_rules.values(), key=lambda x: x["min_score"], reverse=True)
+        
+        for rule in sorted_rules:
+            if rel_score >= rule["min_score"]:
+                return rule
+                
+    except Exception as e:
+        print(f"Error loading mood intensity: {e}")
+        
+    return {}
+
 def load_user_profile():
     """
     Loads the currently selected user profile from the user_profiles directory.
@@ -27,7 +55,7 @@ def load_user_profile():
             return None
     return None
 
-def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_req: str, tone_mod: str, mode: str = "rp", system_extra_info: str = None) -> str:
+def build_system_prompt(profile: dict, rel_score: int, action_req: str, tone_mod: str, mode: str = "rp", system_extra_info: str = None) -> str:
     """
     Constructs the master system prompt for the LLM.
     Combines character backstory, mannerisms, user details, and behavioral rules.
@@ -35,7 +63,6 @@ def build_system_prompt(profile: dict, rel_score: int, rel_label: str, action_re
     Args:
         profile (dict): The active companion's profile data.
         rel_score (int): Current relationship score (-100 to 100).
-        rel_label (str): Textual label for the relationship (e.g., 'Soulmate').
         action_req (str): Instruction on whether to obey or refuse requests.
         tone_mod (str): Instruction on the tone of the response.
         mode (str): Interaction mode ('rp' or 'casual').
@@ -80,6 +107,10 @@ Mannerisms to watch for: {', '.join(user_profile.get('rp_mannerisms', []))}
 """
 
     # 3. Dynamic Context (Relationship and Tone)
+    mood_rule = get_mood_rule(rel_score)
+    rel_label = mood_rule.get("label", "Neutral")
+    mood_instruction = mood_rule.get("instruction", "") if mode == "rp" else ""
+    
     system_content = f"""{base_prompt}
 
 {char_details}
@@ -90,27 +121,16 @@ Rel: {rel_label} ({rel_score}/100)
 Action: {action_req}
 Tone: {tone_mod}
 Mode: {mode.upper()}
+{mood_instruction}
 """
 
     # 4. Global Behavioral Rules
-    if mode == "casual":
-        rule = """
-[BEHAVIOR RULES: CASUAL MODE]
-1. STAY IN CHARACTER at all times.
-2. CONSISE: Keep responses short, direct, and conversational.
-3. NO NARRATION: Do NOT use asterisks (*...*) for actions or narration. Use only spoken dialogue.
-4. RELATIONSHIP: Your tone MUST reflect your current Relationship Score.
-"""
-    else:  # Default to RP
-        rule = """
-[BEHAVIOR RULES: RP MODE]
-1. STAY IN CHARACTER at all times.
-2. ALWAYS move the story forward naturally.
-3. DIALOGUE vs ACTION: Put narration/actions (*...*) on a SEPARATE LINE from spoken dialogue.
-   - Good: *She smiles.* \n "Hello there."
-4. MANNERISMS: Weave your listed mannerisms into your actions.
-5. RELATIONSHIP: Your tone and willingness to help MUST reflect your current Relationship Score.
-"""
+    rule_path = RP_RULES_PATH if mode == "rp" else CASUAL_RULES_PATH
+    try:
+        with open(rule_path, "r", encoding="UTF-8") as f:
+            rule = f.read()
+    except FileNotFoundError:
+        rule = "No response rules."
 
     if system_extra_info:
         system_content += f"Note: {system_extra_info}\n"
