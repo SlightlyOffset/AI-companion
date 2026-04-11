@@ -109,6 +109,8 @@ If you want to import multiple cards without running the main TUI, you can use t
 
 This provides a quick way to batch-import your character library.
 
+**Note**: The conversion will likely be imperfect, review the output for any errors and adjust accordingly.
+
 ---
 
 ## 🎮 Commands
