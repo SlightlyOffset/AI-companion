@@ -136,6 +136,7 @@ class TaiMenu(App):
         self.user_profile = None
         self.ch_name = "Assistant"
         self.user_name = "User"
+        self.user_name_lbl_color = "cyan"
         self.history_profile_name = ""
         self._current_char_avatar_path = None
         self._current_user_avatar_path = None
@@ -279,7 +280,7 @@ class TaiMenu(App):
         self.populate_models()
         self.populate_voices()
 
-    def format_rp(self, text):
+    def format_rp(self, text, role):
         """
         Formats text with basic markdown-like syntax for the TUI.
         - **bold** -> [b]bold[/b]
@@ -305,12 +306,11 @@ class TaiMenu(App):
         # 2. Italic/Narration: *text* (matches single * only, ensuring it's not part of **)
         text = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'[i][dim]\1[/dim][/i]', text, flags=re.DOTALL)
 
-        # 3. Speech: "text" or “text” -> Highlight dialogue
-        # Check top-level first, then inside 'colors' dictionary
-        speech_color = self.character_profile.get("speech_highlight")
-        if not speech_color:
+        # 3. Speech: "text" or “text” -> Highlight dialogue for better readability
+        if role == "assistant":
             speech_color = self.character_profile.get("colors", {}).get("speech_highlight", "yellow")
-            
+        else:
+            speech_color = self.user_profile.get("colors", {}).get("speech_highlight", "yellow")
         text = re.sub(r'["“](.*?)["”]', fr'[{speech_color}]"\1"[/{speech_color}]', text, flags=re.DOTALL)
 
         return text
@@ -413,7 +413,7 @@ class TaiMenu(App):
         starter_messages = self.character_profile.get("starter_messages", [])
         if starter_messages:
             random.shuffle(starter_messages)
-            self.add_message(self.format_rp(starter_messages[0]), role="assistant")
+            self.add_message(self.format_rp(starter_messages[0], role="assistant"), role="assistant")
             memory_manager.save_history(self.history_profile_name, [{"role": "assistant",
                                                                      "content": starter_messages[0]}],
                                         mood_score=self.character_profile.get("relationship_score", 0))
@@ -427,7 +427,7 @@ class TaiMenu(App):
                 role = msg_data.get("role", "assistant")
                 content = msg_data.get("content", "")
                 if role != "system":
-                    content = self.format_rp(content)
+                    content = self.format_rp(content, role=role)
                 self.add_message(content, role=role)
             self.add_message("--- Recap complete ---", role="system")
         else:
@@ -478,6 +478,7 @@ class TaiMenu(App):
             with open(self.user_path, "r", encoding="utf-8") as f:
                 self.user_profile = json.load(f)
             self.user_name = self.user_profile.get("name", "User")
+            self.user_name_lbl_color = self.user_profile.get("colors", {}).get("name_lbl", "cyan")
             update_setting("current_user_profile", os.path.basename(self.user_path))
         else:
             self.user_name = "User"
@@ -542,7 +543,7 @@ class TaiMenu(App):
         self.query_one("#lbl_char").update(f"Name: [bold {self.char_name_lbl_color}]{self.ch_name}[/bold {self.char_name_lbl_color}]")
         self.query_one("#lbl_mood").update(f"Mood: [bold {rel_color}]{rel_label}[/bold {rel_color}]")
         self.query_one("#lbl_rel").update(f"Score: [bold]{rel}[/bold]")
-        self.query_one("#lbl_user").update(f"User: [bold cyan]{self.user_name}[/bold cyan]")
+        self.query_one("#lbl_user").update(f"User: [bold {self.user_name_lbl_color}]{self.user_name}[/bold {self.user_name_lbl_color}]")
         
         # Update progress bar (Map -100/100 to 0/200)
         self.query_one("#rel_bar").progress = rel + 100
@@ -557,7 +558,7 @@ class TaiMenu(App):
             row_class = "user_row" if role == "user" else "ai_row"
             bubble_class = "user_bubble" if role == "user" else "ai_bubble"
             name = self.user_name if role == "user" else self.ch_name
-            name_color = "cyan" if role == "user" else self.char_name_lbl_color
+            name_color = self.user_name_lbl_color if role == "user" else self.char_name_lbl_color
             
             bubble = Static(f"[bold {name_color}]{name}:[/bold {name_color}]\n{text}", markup=True, classes=f"message {bubble_class}")
             row = Horizontal(bubble, classes=f"message_row {row_class}")
@@ -572,7 +573,7 @@ class TaiMenu(App):
         if not message: return
 
         # Format user message for display
-        display_message = self.format_rp(message)
+        display_message = self.format_rp(message, role="user")
         self.add_message(display_message, role="user")
 
         # Handle commands (original message)
@@ -647,7 +648,7 @@ class TaiMenu(App):
             current_buffer += chunk
 
             # Update UI from thread
-            self.app.call_from_thread(ai_msg.update, f"[bold magenta]{self.ch_name}:[/bold magenta]\n{self.format_rp(full_response)}")
+            self.app.call_from_thread(ai_msg.update, f"[bold magenta]{self.ch_name}:[/bold magenta]\n{self.format_rp(full_response, role='assistant')}")
             self.app.call_from_thread(container.scroll_end, animate=False)
 
             # ---------------------------------------------------------------
