@@ -134,7 +134,10 @@ def generate_summary(messages: list, model: str, remote_url: str = None) -> str:
     """
     summary_prompt = (
         "Summarize the following conversation history concisely in bullet points. "
-        "Focus on key events, character reactions, and the current state of the relationship. "
+        "Focus on: "
+        "- Key narrative events and plot points.\n"
+        "- Character emotions, mood changes, and relationship shifts.\n"
+        "- Any important information or decisions made.\n"
         "Keep the summary short and informative. Use [bold yellow] Memory Core Summary [/bold yellow] as header."
     )
     
