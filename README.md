@@ -86,7 +86,7 @@ There are two ways to import a character:
 
 ### 1. In-App Command
 
-While running the application, use the `//import_card` command followed by the file path:
+While running the CLI application, use the `//import_card` command followed by the file path:
 
 ```
 //import_card "C:\path\to\your\character.png"
@@ -94,7 +94,7 @@ While running the application, use the `//import_card` command followed by the f
 
 The new profile will be added to your `profiles` directory and will be available the next time you use the `//change_character` command.
 
-### 2. Standalone Importer Script
+2. Standalone Importer Script
 
 If you want to import multiple cards without running the main TUI, you can use the standalone `card_importer.py` script.
 
@@ -103,10 +103,9 @@ If you want to import multiple cards without running the main TUI, you can use t
     python card_importer.py
     ```
 
-2.  Follow the prompt to import your card using the `//import` command:
-    ```
-    Enter command: //import "C:\path\to\your\other_character.json"
-    ```
+2.  Follow the prompt to import a single card or a whole directory:
+    *   **Single Import**: `//import "C:\path\to\character.png"`
+    *   **Batch Import**: `//batch_import "C:\path\to\characters_folder"`
 
 This provides a quick way to batch-import your character library.
 

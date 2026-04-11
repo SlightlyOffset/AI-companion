@@ -6,11 +6,11 @@ from engines.character_importer import import_character
 
 
 def main():
-    """Simple script to import cards from a file."""
+    """Simple script to import cards from a file or directory."""
     def _import_card(args):
-        """Imports a character card (PNG or JSON) from SillyTavern format."""
+        """Imports a character card (PNG, WEBP or JSON) from SillyTavern format."""
         if not args:
-            print(Fore.RED + "[ERROR] Usage: //import_card <path_to_card_png_or_json>")
+            print(Fore.RED + "[ERROR] Usage: //import <path_to_card_png_or_json>")
             return
 
         path = args.strip().strip('"').strip("'")
@@ -20,16 +20,50 @@ def main():
 
         import_character(path)
 
-    print(Fore.GREEN + "Card Importer is ready. Use //import <path_to_card> to import a character card.")
+    def _batch_import(args):
+        """Imports all character cards from a directory."""
+        if not args:
+            print(Fore.RED + "[ERROR] Usage: //batch_import <directory_path>")
+            return
+
+        dir_path = args.strip().strip('"').strip("'")
+        if not os.path.isdir(dir_path):
+            print(Fore.RED + f"[ERROR] Directory not found: {dir_path}")
+            return
+
+        files = [f for f in os.listdir(dir_path) if f.lower().endswith((".png", ".webp", ".json"))]
+        if not files:
+            print(Fore.YELLOW + f"[INFO] No valid character files found in {dir_path}")
+            return
+
+        print(Fore.CYAN + f"[SYSTEM] Found {len(files)} potential cards. Starting batch import...")
+        success_count = 0
+        for f in files:
+            full_path = os.path.join(dir_path, f)
+            print(Fore.WHITE + f" -> Importing {f}...")
+            if import_character(full_path):
+                success_count += 1
+        
+        print(Fore.GREEN + f"\n[SUCCESS] Batch import complete. {success_count}/{len(files)} characters imported.")
+
+    print(Fore.GREEN + "Card Importer is ready.")
+    print(Fore.CYAN + "Commands:")
+    print(Fore.CYAN + "  //import <path>        - Import a single character card (PNG/WEBP/JSON)")
+    print(Fore.CYAN + "  //batch_import <dir>   - Import all cards from a directory")
+    print(Fore.CYAN + "  Ctrl+C                 - Exit")
 
     try:
         while True:
-            user_input = input("Enter command: ")
-            if user_input.startswith("//import"):
+            user_input = input("\nEnter command: ").strip()
+            if not user_input:
+                continue
+
+            if user_input.startswith("//batch_import"):
+                _batch_import(user_input[len("//batch_import"):].strip())
+            elif user_input.startswith("//import"):
                 _import_card(user_input[len("//import"):].strip())
-                print()
             else:
-                print(Fore.RED + "[ERROR] Unknown command. Use //import_card <path_to_card> to import a character card.")
+                print(Fore.RED + "[ERROR] Unknown command. Use //import <path> or //batch_import <dir>.")
     except KeyboardInterrupt:
         print("\nExiting Card Importer.")
 
