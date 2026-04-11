@@ -451,7 +451,7 @@ class TaiMenu(App):
         summary = generate_summary(older_history, model=summarizer_model, remote_url=remote_url)
         
         def update_ui():
-            self.add_message(summary, role="system")
+            self.add_message(summary, role="summary")
             self.add_message("--- Recent Continuity ---", role="system")
             for msg_data in recent_history:
                 role = msg_data.get("role", "assistant")
