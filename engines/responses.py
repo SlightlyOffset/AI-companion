@@ -120,32 +120,37 @@ def get_sentiment_score(user_input: str, model: str, remote_url: str = None, pro
         pass
     return 0
 
-def generate_summary(messages: list, model: str, remote_url: str = None) -> str:
+def generate_summary(messages: list, model: str, remote_url: str = None, user_name: str = "User", char_name: str = "Assistant") -> str:
     """
     Generates a concise summary of the provided conversation history.
-    
+
     Args:
         messages (list): The chat history to summarize.
-        model (str): The model to use for summarization (e.g., 'gemma2:2b').
+        model (str): The model to use for summarization.
         remote_url (str, optional): The URL for remote LLM inference.
-        
+        user_name (str): The name of the user persona.
+        char_name (str): The name of the character persona.
+
     Returns:
         str: The generated summary.
     """
     summary_prompt = (
-        "Summarize the following conversation history concisely in bullet points. "
+        f"Summarize the following conversation history between {user_name} and {char_name} concisely in bullet points. "
         "Focus on: "
         "- Key narrative events and plot points.\n"
         "- Character emotions, mood changes, and relationship shifts.\n"
         "- Any important information or decisions made.\n"
+        f"Refer to the participants as {user_name} and {char_name}. "
         "Keep the summary short and informative. Use [bold yellow] Memory Core Summary [/bold yellow] as header."
     )
-    
+
     formatted_history = ""
     for msg in messages:
         role = msg.get("role", "unknown")
+        name = user_name if role == "user" else char_name
         content = msg.get("content", "")
-        formatted_history += f"{role.upper()}: {content}\n"
+        formatted_history += f"{name.upper()}: {content}\n"
+
 
     summary_messages = [
         {"role": "system", "content": summary_prompt},
