@@ -305,33 +305,36 @@ def app_commands(ops: str, suppress_output: bool = False):
         subcommand = parts[0].lower()
         sub_args = parts[1] if len(parts) > 1 else ""
 
+        # Detect the active character's lorebook
+        from engines.config import get_setting
+        char_profile_setting = get_setting("current_character_profile")
+        lore_path = "lorebooks/default.json" # Default fallback
+        
+        if char_profile_setting:
+            try:
+                with open(os.path.join("profiles", char_profile_setting), "r", encoding="UTF-8") as f:
+                    p_data = json.load(f)
+                    lore_path = p_data.get("lorebook_path", lore_path)
+            except Exception:
+                pass
+
         if subcommand == "reload":
             # Since load_lorebook is called per-turn, reload just confirms existence
-            lore_path = "lorebooks/default.json"
             if os.path.exists(lore_path):
-                _log("[SYSTEM] Lorebook reloaded successfully.", Fore.GREEN)
+                _log(f"[SYSTEM] Lorebook ({os.path.basename(lore_path)}) reloaded successfully.", Fore.GREEN)
             else:
-                _log("[SYSTEM] Lorebook file not found, but system is ready.", Fore.YELLOW)
+                _log(f"[SYSTEM] {os.path.basename(lore_path)} not found, but system is ready.", Fore.YELLOW)
         elif subcommand == "add":
             if "|" not in sub_args:
                 _log("[ERROR] Usage: //lore add keys | content", Fore.RED)
                 return
             
             keys_str, content = sub_args.split("|", 1)
-            keys = [k.strip() for k in keys_str.split(",")]
-            
-            # Detect the active character's lorebook
-            from engines.config import get_setting
-            char_profile_setting = get_setting("current_character_profile")
-            lore_path = "lorebooks/default.json" # Default fallback
-            
-            if char_profile_setting:
-                try:
-                    with open(os.path.join("profiles", char_profile_setting), "r", encoding="UTF-8") as f:
-                        p_data = json.load(f)
-                        lore_path = p_data.get("lorebook_path", lore_path)
-                except Exception:
-                    pass
+            keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+
+            if not keys:
+                _log("[ERROR] No valid keys provided. Usage: //lore add keys | content", Fore.RED)
+                return
 
             os.makedirs(os.path.dirname(lore_path), exist_ok=True) if os.path.dirname(lore_path) else None
             
