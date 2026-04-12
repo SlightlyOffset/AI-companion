@@ -25,7 +25,7 @@ Build and integrate a scalable Lorebook system that injects dynamic context into
    - Add a basic `//lore reload` command to hot-reload the `lorebook.json` from disk.
    - (Optional) Add `//lore add [keys] | [content]` for quick runtime additions.
 
-4. **Initialize Default Data**
+4. [x] **Initialize Default Data** [c1c9c03]
    - Create a `lorebooks` directory at the project root.
    - Add a sample `default.json` demonstrating the format.
 
