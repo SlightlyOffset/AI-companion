@@ -10,9 +10,9 @@
 - [x] Draft a specific prompt for consolidating an existing summary with new events. (e9d8857)
 
 ## Phase 3: Background Worker Integration
-- [ ] In `menu.py` (or the appropriate controller), trigger a background check after every few user interactions.
-- [ ] If the difference between the total history length and the `last_summarized_index` exceeds the active `memory_limit` + buffer (e.g., 5 messages), launch the summarization task.
-- [ ] Save the updated Memory Core and new index back to disk upon completion.
+- [x] In `menu.py` (or the appropriate controller), trigger a background check after every few user interactions. (9c22795)
+- [x] If the difference between the total history length and the `last_summarized_index` exceeds the active `memory_limit` + buffer (e.g., 5 messages), launch the summarization task. (9c22795)
+- [x] Save the updated Memory Core and new index back to disk upon completion. (9c22795)
 
 ## Phase 4: Context Injection
 - [ ] Modify `get_respond_stream` in `engines/responses.py` to fetch the current Memory Core.
