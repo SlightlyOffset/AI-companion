@@ -448,7 +448,8 @@ class TaiMenu(App):
         summarizer_model = get_setting("summarizer_model", "gemma2:2b")
         remote_url = get_setting("remote_llm_url")
         
-        summary = generate_summary(older_history, model=summarizer_model, remote_url=remote_url)
+        summary = generate_summary(older_history, model=summarizer_model, remote_url=remote_url, 
+                                   user_name=self.user_name, char_name=self.ch_name)
         
         def update_ui():
             self.add_message(summary, role="summary")
