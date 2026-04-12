@@ -2,7 +2,7 @@
 
 ## Phase 1: Memory Manager & State Storage
 - [x] Update `engines/memory_v2.py` to support `memory_core` and `last_summarized_index` within the `metadata` structure. (bc618b6)
-- [~] Add getter and setter methods for the Memory Core in `HistoryManager`.
+- [x] Add getter and setter methods for the Memory Core in `HistoryManager`. (21728c8)
 
 ## Phase 2: Rolling Summarizer Logic
 - [ ] In `engines/responses.py`, create a `update_rolling_summary` helper function.
