@@ -287,6 +287,7 @@ class TaiMenu(App):
         self.load_initial_state()
         self.populate_models()
         self.populate_voices()
+        self.populate_tts_engines()
 
     @staticmethod
     def format_summary(summary: str) -> str:
