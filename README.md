@@ -39,7 +39,7 @@ A lightweight, highly immersive, profile-based AI companion that lives in your t
 
 ### Prerequisites
 
-* **Python 3.10+**
+* **Python 3.10+** (Recommended: 3.10.11 for the best compatibility)
 * **Ollama** (Local LLM runner)
 * **Microsoft Edge** (For neural TTS fallback)
 * *(Optional)* **Google Colab account** for cloud offloading.
