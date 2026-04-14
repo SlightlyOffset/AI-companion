@@ -17,6 +17,7 @@ A lightweight, highly immersive, profile-based AI companion that lives in your t
 ### 🎙️ Advanced Audio & Voice Cloning
 
 * **Multi-Voice TTS**: Automatically switches between a narrator voice for actions (`*...*`) and a character voice for dialogue.
+    * *Note: Using the **XTTS Colab Bridge** is highly recommended for voice cloning. Local installation is complex and resource-heavy, while the bridge provides high-speed GPU inference for free.*
 * **Voice Cloning (XTTS v2)**: Clone distinct voices locally or via Colab, giving your companion a truly unique and realistic voice.
 * **Edge Neural Support**: Built-in support for Microsoft's high-fidelity neural voices as a lightweight fallback.
 * **Pipelined Streaming**: Uses a multi-threaded queue system to generate and play audio *while* the LLM is still typing. Zero latency.
