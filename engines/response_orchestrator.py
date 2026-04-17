@@ -94,11 +94,17 @@ def iterate_response_events(
 
     if get_setting("tts_enabled", False) and current_buffer.strip():
         cleaned = clean_text_for_tts(current_buffer.strip(), speak_narration=True)
-        if cleaned:
-            voice = runtime["narrator_voice"] if tts_in_narration else runtime["char_voice"]
-            engine = runtime["narrator_engine"] if tts_in_narration else runtime["char_engine"]
-            clone_ref = None if tts_in_narration else runtime["char_clone_ref"]
-            language = "en" if tts_in_narration else runtime["char_language"]
+        voice = runtime["narrator_voice"] if tts_in_narration else runtime["char_voice"]
+        engine = runtime["narrator_engine"] if tts_in_narration else runtime["char_engine"]
+        clone_ref = None if tts_in_narration else runtime["char_clone_ref"]
+        language = "en" if tts_in_narration else runtime["char_language"]
+        if cleaned and _should_enqueue_segment(
+            voice=voice,
+            char_voice=runtime["char_voice"],
+            narrator_voice=runtime["narrator_voice"],
+            speak_enable=runtime["speak_enable"],
+            narration_enable=runtime["narration_enable"],
+        ):
             yield {"type": "tts", "payload": (cleaned, voice, engine, clone_ref, language)}
 
     yield {"type": "complete", "full_response": full_response}
