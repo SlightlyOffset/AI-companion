@@ -3,14 +3,12 @@ Main menu and TUI components for the AI Desktop Companion.
 """
 # Standard library imports
 import json
-import re
 import os
 import queue
 import random
 import threading
 import time
 import sys
-from pathlib import Path
 
 # Third-party imports
 import ollama
@@ -21,15 +19,32 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import work, events
 from textual.reactive import reactive
 from textual.message import Message
-from rich.markup import escape
 
 # First-party imports
-from engines.app_commands import app_commands, RestartRequested, RegenerateRequested, RewindRequested
+from engines.app_commands import RestartRequested
+from engines.chat_controller import (
+    get_user_message_number,
+    handle_command_input,
+    next_response_variant_or_regen,
+    previous_response_variant,
+)
 from engines.config import update_setting, get_setting
-from engines.responses import get_respond_stream, generate_summary, update_rolling_summary
-from engines.tts_module import generate_audio, play_audio, clean_text_for_tts
+from engines.formatting import format_roleplay_text, format_summary_text
+from engines.profile_state import (
+    build_sidebar_state,
+    get_initial_avatar_paths,
+    load_profile_session,
+    resolve_selected_paths,
+)
+from engines.recap_service import (
+    generate_recap_summary,
+    generate_updated_memory_core,
+    rolling_summary_target_index,
+    split_recap_history,
+)
+from engines.response_orchestrator import iterate_response_events
+from engines.tts_module import generate_audio, play_audio
 from engines.memory_v2 import memory_manager
-from engines.prompts import get_mood_rule
 
 # Ensure the project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +58,26 @@ def set_terminal_appearance(title: str = None):
         sys.stdout.write(f"\033]0;{title}\007")
 
     sys.stdout.flush()
+
+
+def format_rp(text: str) -> str:
+    """Legacy compatibility helper used by older tests/imports."""
+    if not text:
+        return ""
+    parts = text.split("*")
+    for index in range(1, len(parts), 2):
+        parts[index] = f"[i][dim]{parts[index]}[/dim][/i]"
+    return "".join(parts)
+
+
+def pick_profile():
+    """Legacy compatibility shim for older tests/tools."""
+    return None
+
+
+def pick_user_profile():
+    """Legacy compatibility shim for older tests/tools."""
+    return None
 
 
 class ChatInput(TextArea):
@@ -68,8 +103,8 @@ class ChatInput(TextArea):
     def on_key(self, event: events.Key) -> None:
         """Handle Enter for submission and provide fallbacks for newlines."""
         if event.key == "enter":
-            # Only submit on plain "enter". 
-            # If the terminal sends "shift+enter" or "ctrl+enter" as distinct keys, 
+            # Only submit on plain "enter".
+            # If the terminal sends "shift+enter" or "ctrl+enter" as distinct keys,
             # they will fall through to the default TextArea behavior (newline).
             event.prevent_default()
             text = self.text.strip()
@@ -121,22 +156,7 @@ class TaiMenu(App):
 
     def __init__(self, char_path, user_path, **kwargs):
         super().__init__(**kwargs)
-        self.char_path = char_path
-        self.user_path = user_path
-        
-        if not self.char_path:
-            char_profile_name = get_setting("current_character_profile")
-            if char_profile_name:
-                potential_path = os.path.join("profiles", char_profile_name)
-                if os.path.exists(potential_path):
-                    self.char_path = potential_path
-
-        if not self.user_path:
-            user_profile_name = get_setting("current_user_profile")
-            if user_profile_name:
-                potential_path = os.path.join("user_profiles", user_profile_name)
-                if os.path.exists(potential_path):
-                    self.user_path = potential_path
+        self.char_path, self.user_path = resolve_selected_paths(char_path, user_path)
 
         self.character_profile = None
         self.char_name_lbl_color = "magenta"
@@ -161,56 +181,31 @@ class TaiMenu(App):
 
     def action_previous_response(self) -> None:
         """Scrolls back to the previous AI response for the current prompt."""
-        full_history = memory_manager.load_history(self.history_profile_name)
-        if not full_history or full_history[-1].get("role") != "assistant":
-            return
-        
-        last_msg = full_history[-1]
-        alternatives = last_msg.get("alternatives", [])
-        selected_index = last_msg.get("selected_index", 0)
-
-        if alternatives and selected_index > 0:
-            new_index = selected_index - 1
-            last_msg["selected_index"] = new_index
-            last_msg["content"] = alternatives[new_index]
-            memory_manager.save_history(self.history_profile_name, full_history)
-            self.refresh_last_ai_message(last_msg["content"], new_index, len(alternatives))
+        result = previous_response_variant(self.history_profile_name)
+        if result:
+            self.refresh_last_ai_message(result["content"], result["index"], result["total"])
 
     def action_next_or_regenerate_response(self) -> None:
         """Scrolls forward to the next response, or regenerates if at the end."""
-        full_history = memory_manager.load_history(self.history_profile_name)
-        if not full_history or full_history[-1].get("role") != "assistant":
+        result = next_response_variant_or_regen(self.history_profile_name)
+        if not result:
             return
-        
-        last_msg = full_history[-1]
-        alternatives = last_msg.get("alternatives", [])
-        selected_index = last_msg.get("selected_index", 0)
 
-        # 1. Scroll forward if alternatives exist
-        if alternatives and selected_index < len(alternatives) - 1:
-            new_index = selected_index + 1
-            last_msg["selected_index"] = new_index
-            last_msg["content"] = alternatives[new_index]
-            memory_manager.save_history(self.history_profile_name, full_history)
-            self.refresh_last_ai_message(last_msg["content"], new_index, len(alternatives))
-        
-        # 2. Regenerate if at the newest response
-        else:
-            # Find the user message that prompted this
-            if len(full_history) >= 2 and full_history[-2].get("role") == "user":
-                user_text = full_history[-2].get("content", "")
-                
-                # Visual feedback
-                try:
-                    ai_bubble = self.query(".ai_bubble").last()
-                    ai_bubble.update(
-                        f"{self._message_header('assistant', self._current_assistant_message_number())}\n"
-                        "[dim italic]Regenerating response...[/dim italic]"
-                    )
-                except Exception:
-                    pass
-                
-                self.stream_response(user_text, is_regeneration=True)
+        if result["type"] == "next":
+            self.refresh_last_ai_message(result["content"], result["index"], result["total"])
+            return
+
+        user_text = result.get("user_text")
+        if user_text:
+            try:
+                ai_bubble = self.query(".ai_bubble").last()
+                ai_bubble.update(
+                    f"{self._message_header('assistant', self._current_assistant_message_number())}\n"
+                    "[dim italic]Regenerating response...[/dim italic]"
+                )
+            except Exception:
+                pass
+            self.stream_response(user_text, is_regeneration=True)
 
     def _message_header(self, role: str, message_number: int | None) -> str:
         """Build a standardized bubble header with optional message numbering."""
@@ -250,32 +245,10 @@ class TaiMenu(App):
         self.push_screen(ProfileSelect(), callback=self.on_profile_selected)
 
     def compose(self) -> ComposeResult:
-        # Get initial avatar path for character and user profiles (if they exist) to display in the sidebar
-        init_avatar = "img/No_Image_Error.png"
-        init_user_avatar = "img/No_Image_Error.png"
-
-        if self.char_path:
-            try:
-                with open(self.char_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    path = data.get("avatar_path")
-                    if path and os.path.exists(path):
-                        init_avatar = path
-            except (FileNotFoundError, json.JSONDecodeError):
-                pass
-
-        if self.user_path:
-            try:
-                with open(self.user_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    path = data.get("avatar_path")
-                    if path and os.path.exists(path):
-                        init_user_avatar = path
-            except (FileNotFoundError, json.JSONDecodeError):
-                pass
-
-        self._current_char_avatar_path = str(Path(init_avatar).absolute())
-        self._current_user_avatar_path = str(Path(init_user_avatar).absolute())
+        self._current_char_avatar_path, self._current_user_avatar_path = get_initial_avatar_paths(
+            self.char_path,
+            self.user_path,
+        )
 
         yield Header(show_clock=True)
         with Horizontal(id="app_body"):
@@ -292,7 +265,7 @@ class TaiMenu(App):
                 yield Label("Relationship:", classes="sidebar_label")
                 yield ProgressBar(total=200, show_percentage=False, id="rel_bar")
                 yield Label("Score: [bold]0[/bold]", id="lbl_rel")
-                
+
                 yield Label("--- User ---", classes="sidebar_header")
                 with Vertical(id="user_avatar_wrap", classes="avatar_container"):
                     yield Image(self._current_user_avatar_path, id="avatar_portrait_user")
@@ -328,7 +301,7 @@ class TaiMenu(App):
         """Initializes the app and load character profiles."""
         self.start_tts_worker()
         self.load_initial_state()
-        
+
         if not self.char_path:
             from ProfileSelectScreen import ProfileSelect
             self.push_screen(ProfileSelect(), callback=self.on_profile_selected)
@@ -343,10 +316,10 @@ class TaiMenu(App):
         if result:
             char_name = result.get("character")
             user_name = result.get("user")
-            
+
             char_path = os.path.join("profiles", char_name) if char_name else None
             user_path = os.path.join("user_profiles", user_name) if user_name else None
-            
+
             self.switch_profile(char_path, user_path)
 
     def switch_profile(self, char_path: str, user_path: str = None) -> None:
@@ -370,7 +343,7 @@ class TaiMenu(App):
 
         self.char_path = char_path
         self.user_path = user_path
-        
+
         # Re-initialize state
         self.load_initial_state()
         self.populate_models()
@@ -379,15 +352,7 @@ class TaiMenu(App):
 
     @staticmethod
     def format_summary(summary: str) -> str:
-        # Treat LLM summary text as untrusted markup input.
-        text = escape(summary)
-        # Handle ## headers (Markdown style)
-        text = re.sub(r'^##\s+(.*)$', r'[b][u]\1[/u][/b]', text, flags=re.MULTILINE)
-        # Handle **bold**
-        text = re.sub(r'\*\*(.*?)\*\*', r'[b]\1[/b]', text, flags=re.DOTALL)
-        # Convert * to bullet points
-        text = text.replace("*", "•")
-        return text
+        return format_summary_text(summary)
 
     def format_rp(self, text, role) -> str:
         """
@@ -396,35 +361,21 @@ class TaiMenu(App):
         - *italic* -> [i][dim]italic[/dim][/i] (Narration)
         - "speech" -> [yellow]"speech"[/yellow] (Highlight)
         """
-        if not text:
-            return ""
-
-        user = self.user_profile.get("name", "User") if self.user_profile else "User"
-        character = self.character_profile.get("name", "Assistant") if self.character_profile else "Assistant"
-
-        # Replace placeholder tags like {{user}} with actual value
-        text = text.replace("{{user}}", user).replace("{{char}}", character)
-        text = text.replace("{{User}}", user).replace("{{Char}}", character)
-
-        # 1. Strip [SCENE: ...] tags
-        text = re.sub(r'\[SCENE:\s*.*?\]', '', text, flags=re.IGNORECASE).strip()
-
-        # 2. Bold: **text**
-        text = re.sub(r'\*\*(.*?)\*\*', r'[b]\1[/b]', text, flags=re.DOTALL)
-
-        # 2. Italic/Narration: *text* (matches single * only, ensuring it's not part of **)
-        text = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'[i][dim]\1[/dim][/i]', text, flags=re.DOTALL)
-
-        # 3. Speech: "text" or “text” -> Highlight dialogue for better readability
-        if role == "assistant":
-            speech_color = self.character_profile.get("colors", {}).get("speech_highlight", "yellow")
-        else:
-            speech_color = "yellow"
-            if self.user_profile:
-                speech_color = self.user_profile.get("colors", {}).get("speech_highlight", "yellow")
-        text = re.sub(r'["“](.*?)["”]', fr'[{speech_color}]"\1"[/{speech_color}]', text, flags=re.DOTALL)
-
-        return text
+        character_profile = self.character_profile or {}
+        user_name = self.user_profile.get("name", "User") if self.user_profile else "User"
+        character_name = character_profile.get("name", "Assistant")
+        user_speech_color = "yellow"
+        if self.user_profile:
+            user_speech_color = self.user_profile.get("colors", {}).get("speech_highlight", "yellow")
+        assistant_speech_color = character_profile.get("colors", {}).get("speech_highlight", "yellow")
+        return format_roleplay_text(
+            text=text,
+            role=role,
+            user_name=user_name,
+            character_name=character_name,
+            user_speech_color=user_speech_color,
+            assistant_speech_color=assistant_speech_color,
+        )
 
     def populate_tts_engines(self) -> None:
         """Populate the TTS engine selection list with available engines."""
@@ -446,10 +397,10 @@ class TaiMenu(App):
                 # Display only the part after the last slash (removes user/repo paths)
                 display_name = full_name.split('/')[-1]
                 options.append((display_name, full_name))
-            
+
             select = self.query_one("#model_select", Select)
             select.set_options(options)
-            
+
             # Set current model as default
             current_model = self.character_profile.get("llm_model", get_setting("default_llm_model", "llama3"))
             # Find the best match in the list
@@ -487,7 +438,7 @@ class TaiMenu(App):
     def on_select_changed(self, event: Select.Changed) -> None:
         """Update the character profile with selected LLM, Character Voice, or Narration Voice."""
         from engines.utilities import save_json_atomic
-        
+
         # Handle cases where value might be Select.BLANK (NULL)
         val = event.value if event.value != Select.BLANK else None
 
@@ -548,9 +499,10 @@ class TaiMenu(App):
         if not messages_history:
             return
 
-        if len(messages_history) <= 15:
+        recap_state = split_recap_history(messages_history)
+        if recap_state["mode"] == "full":
             self.add_message(f"--- Recap: {len(messages_history)} messages loaded ---", role="system")
-            for index, msg_data in enumerate(messages_history, start=1):
+            for index, msg_data in enumerate(recap_state["messages"], start=1):
                 role = msg_data.get("role", "assistant")
                 content = msg_data.get("content", "")
                 if role != "system":
@@ -559,23 +511,18 @@ class TaiMenu(App):
                 self.add_message(content, role=role, msg_data=msg_data, message_number=message_number)
             self.add_message("--- Recap complete ---", role="system")
         else:
-            # History is long, trigger summarization (Split: older history vs. recent 5)
-            older_history = messages_history[:-5]
-            recent_history = messages_history[-5:]
-
             self.add_message("--- [bold cyan]Analyzing past memories...[/bold cyan] ---", role="system")
-            self.summarize_and_display(older_history, recent_history, len(older_history) + 1)
+            self.summarize_and_display(
+                recap_state["older_history"],
+                recap_state["recent_history"],
+                recap_state["recent_start_index"],
+            )
 
     @work(thread=True)
     def summarize_and_display(self, older_history: list, recent_history: list, recent_start_index: int):
         """Worker for summarizing history in the background."""
-        # Default to gemma2:2b for efficient summarization
-        summarizer_model = get_setting("summarizer_model", "gemma2:2b")
-        remote_url = get_setting("remote_llm_url")
-        
-        summary = generate_summary(older_history, model=summarizer_model, remote_url=remote_url, 
-                                   user_name=self.user_name, char_name=self.ch_name)
-        
+        summary = generate_recap_summary(older_history, user_name=self.user_name, char_name=self.ch_name)
+
         def update_ui():
             self.add_message(self.format_summary(summary), role="summary")
             self.add_message("--- Recent Continuity ---", role="system")
@@ -592,19 +539,7 @@ class TaiMenu(App):
 
     def load_initial_state(self) -> None:
         """Loads profiles and settings based on pre-selected paths or settings.json."""
-        if not self.char_path:
-            char_profile_name = get_setting("current_character_profile")
-            if char_profile_name:
-                potential_path = os.path.join("profiles", char_profile_name)
-                if os.path.exists(potential_path):
-                    self.char_path = potential_path
-
-        if not self.user_path:
-            user_profile_name = get_setting("current_user_profile")
-            if user_profile_name:
-                potential_path = os.path.join("user_profiles", user_profile_name)
-                if os.path.exists(potential_path):
-                    self.user_path = potential_path
+        self.char_path, self.user_path = resolve_selected_paths(self.char_path, self.user_path)
 
         if not self.char_path:
             # Still no character path? We'll handle this in the next task by pushing ProfileSelectScreen
@@ -620,20 +555,17 @@ class TaiMenu(App):
         except Exception:
             pass # App might not be fully mounted yet
 
-        with open(self.char_path, "r", encoding="utf-8") as f:
-            self.character_profile = json.load(f)
-
-        self.ch_name = self.character_profile.get("name", "Assistant")
-        colors = self.character_profile.get("colors", {})
-        self.char_name_lbl_color = colors.get("name_lbl", "magenta")
-        self.history_profile_name = os.path.basename(self.char_path).replace(".json", "")
+        session_state = load_profile_session(self.char_path, self.user_path)
+        self.character_profile = session_state["character_profile"]
+        self.user_profile = session_state["user_profile"]
+        self.ch_name = session_state["ch_name"]
+        self.user_name = session_state["user_name"]
+        self.char_name_lbl_color = session_state["char_name_lbl_color"]
+        self.user_name_lbl_color = session_state["user_name_lbl_color"]
+        self.history_profile_name = session_state["history_profile_name"]
         update_setting("current_character_profile", os.path.basename(self.char_path))
 
         if self.user_path:
-            with open(self.user_path, "r", encoding="utf-8") as f:
-                self.user_profile = json.load(f)
-            self.user_name = self.user_profile.get("name", "User")
-            self.user_name_lbl_color = self.user_profile.get("colors", {}).get("name_lbl", "cyan")
             update_setting("current_user_profile", os.path.basename(self.user_path))
         else:
             self.user_name = "User"
@@ -656,52 +588,33 @@ class TaiMenu(App):
 
     def update_sidebar(self):
         """Update the sidebar content including avatars and relationship stats."""
-        # Refresh avatars
-        try:
-            # Character Avatar
-            char_avatar_path = self.character_profile.get("avatar_path", "img/No_Image_Error.png")
-            if not char_avatar_path or not os.path.exists(char_avatar_path): 
-                char_avatar_path = "img/No_Image_Error.png"
-            
-            char_abs_path = str(Path(char_avatar_path).absolute())
-            
-            if getattr(self, "_current_char_avatar_path", None) != char_abs_path:
-                char_img = self.query_one("#avatar_portrait_character", Image)
-                char_img.image = char_abs_path
-                self._current_char_avatar_path = char_abs_path
+        state = build_sidebar_state(
+            character_profile=self.character_profile or {},
+            user_profile=self.user_profile,
+            ch_name=self.ch_name,
+            user_name=self.user_name,
+            char_name_lbl_color=self.char_name_lbl_color,
+            user_name_lbl_color=self.user_name_lbl_color,
+        )
 
-            # User Avatar
-            user_avatar_path = "img/No_Image_Error.png"
-            if self.user_profile:
-                user_avatar_path = self.user_profile.get("avatar_path", "img/No_Image_Error.png")
-                if not user_avatar_path or not os.path.exists(user_avatar_path): 
-                    user_avatar_path = "img/No_Image_Error.png"
-            
-            user_abs_path = str(Path(user_avatar_path).absolute())
-            
-            if getattr(self, "_current_user_avatar_path", None) != user_abs_path:
+        try:
+            if getattr(self, "_current_char_avatar_path", None) != state["char_avatar_abs"]:
+                char_img = self.query_one("#avatar_portrait_character", Image)
+                char_img.image = state["char_avatar_abs"]
+                self._current_char_avatar_path = state["char_avatar_abs"]
+
+            if getattr(self, "_current_user_avatar_path", None) != state["user_avatar_abs"]:
                 user_img = self.query_one("#avatar_portrait_user", Image)
-                user_img.image = user_abs_path
-                self._current_user_avatar_path = user_abs_path
-        except Exception as e:
-            # For debugging
-            # self.log(f"Error updating avatars: {e}")
+                user_img.image = state["user_avatar_abs"]
+                self._current_user_avatar_path = state["user_avatar_abs"]
+        except Exception:
             pass
 
-        rel = self.character_profile.get("relationship_score", 0)
-        
-        # Determine relationship label and color from centralized config
-        mood_rule = get_mood_rule(rel)
-        rel_label = mood_rule.get("label", "Neutral / Acquaintance")
-        rel_color = mood_rule.get("color", "#6e88ff")
-
-        self.query_one("#lbl_char").update(f"Name: [bold {self.char_name_lbl_color}]{self.ch_name}[/bold {self.char_name_lbl_color}]")
-        self.query_one("#lbl_mood").update(f"Mood: [bold {rel_color}]{rel_label}[/bold {rel_color}]")
-        self.query_one("#lbl_rel").update(f"Score: [bold]{rel}[/bold]")
-        self.query_one("#lbl_user").update(f"User: [bold {self.user_name_lbl_color}]{self.user_name}[/bold {self.user_name_lbl_color}]")
-        
-        # Update progress bar (Map -100/100 to 0/200)
-        self.query_one("#rel_bar").progress = rel + 100
+        self.query_one("#lbl_char").update(state["char_label"])
+        self.query_one("#lbl_mood").update(state["mood_label"])
+        self.query_one("#lbl_rel").update(state["rel_label"])
+        self.query_one("#lbl_user").update(state["user_label"])
+        self.query_one("#rel_bar").progress = state["rel_progress"]
 
     def add_message(self, text, role="user", msg_data=None, message_number: int | None = None):
         container = self.query_one("#chat_list")
@@ -717,7 +630,7 @@ class TaiMenu(App):
             row_class = "user_row" if role == "user" else "ai_row"
             bubble_class = "user_bubble" if role == "user" else "ai_bubble"
             header = self._message_header(role, message_number)
-            
+
             # Multi-response pagination indicator
             indicator = ""
             if msg_data and role == "assistant":
@@ -728,9 +641,9 @@ class TaiMenu(App):
 
             bubble = Static(f"{header}\n{text}{indicator}", markup=True, classes=f"message {bubble_class}")
             row = Horizontal(bubble, classes=f"message_row {row_class}")
-            
+
             container.mount(row)
-            
+
         container.scroll_end(animate=False)
 
     def reload_chat_from_history(self) -> None:
@@ -755,53 +668,51 @@ class TaiMenu(App):
 
         # Format user message for display
         display_message = self.format_rp(message, role="user")
-        user_message_number = None
-        if not message.startswith("//"):
-            user_message_number = memory_manager.get_history_length(self.history_profile_name) + 1
+        user_message_number = get_user_message_number(message, self.history_profile_name)
         self.add_message(display_message, role="user", message_number=user_message_number)
 
         # Handle commands (original message)
         if message.startswith("//"):
             try:
-                success, messages = app_commands(message, suppress_output=True)
-                if success:
-                    for msg in messages:
-                        self.add_message(msg, role="command")
-                    self.update_sidebar()
-                    return
+                command_action = handle_command_input(message, self.history_profile_name)
             except RestartRequested:
                 self.exit()
                 raise
-            except RegenerateRequested:
-                # Remove the command message from the UI
+            except ValueError as exc:
+                self.add_message(f"[ERROR] {exc}", role="command")
+                return
+
+            if not command_action:
+                return
+
+            if command_action["type"] == "command_success":
+                for msg in command_action["messages"]:
+                    self.add_message(msg, role="command")
+                self.update_sidebar()
+                return
+
+            if command_action["type"] == "regenerate":
                 try:
                     self.query_one("#chat_list").children[-1].remove()
                 except Exception:
                     pass
-                full_history = memory_manager.load_history(self.history_profile_name)
-                if len(full_history) >= 2 and full_history[-2].get("role") == "user":
-                    user_text = full_history[-2].get("content", "")
-                    self.stream_response(user_text, is_regeneration=True)
+                if command_action.get("user_text"):
+                    self.stream_response(command_action["user_text"], is_regeneration=True)
                 return
-            except RewindRequested as rewind_request:
-                try:
-                    original_count, kept_count = memory_manager.rewind_history(
-                        self.history_profile_name,
-                        rewind_request.message_number,
-                    )
-                except ValueError as exc:
-                    self.add_message(f"[ERROR] {exc}", role="command")
-                    return
 
+            if command_action["type"] == "rewind":
                 self.reload_chat_from_history()
-                # If summary state was reset by rewind, this will rebuild it once enough messages exist.
                 self.check_for_rolling_summary()
                 self.add_message(
-                    f"[SYSTEM] Rewound conversation from {original_count} to {kept_count} messages.",
+                    f"[SYSTEM] Rewound conversation from {command_action['original_count']} to {command_action['kept_count']} messages.",
                     role="command",
                 )
                 return
-        
+
+            if command_action["type"] == "command_noop":
+                self.add_message("[SYSTEM] Recognized command pattern but no action taken: Non-existent command.", role="command")
+                return
+
         # Trigger AI response
         assistant_message_number = (user_message_number + 1) if user_message_number is not None else None
         self.stream_response(message, message_number=assistant_message_number)
@@ -813,7 +724,7 @@ class TaiMenu(App):
             def __init__(self, value):
                 self.value = value
         await self.on_chat_input_submitted(MockEvent(event.value))
-        
+
     def _prepare_stream_widgets(
         self,
         is_regeneration: bool,
@@ -865,95 +776,21 @@ class TaiMenu(App):
         header: str,
     ) -> None:
         """Worker to handle the LLM streaming and TTS queuing."""
-
-        def _get_smart_split_points(text):
-            """
-            Internal helper function to find split points for TTS.
-            Splits on asterisks (to switch voices) and punctuation (to keep segments short).
-            """
-            points = []
-            in_asterisks = False
-            for i in range(len(text)):
-                char = text[i]
-                if char == '*':
-                    in_asterisks = not in_asterisks
-                    points.append(i + 1)
-                    continue
-                if not in_asterisks:
-                    if char in ".!?\n":
-                        if char == '.' and i + 1 < len(text) and text[i + 1] == '.':
-                            continue
-                        if char == '.' and i > 0 and text[i - 1] == '.':
-                            continue
-                        points.append(i + 1)
-            return points
-
         full_response = ""
-        current_buffer = ""
-        tts_in_narration = False
-
-        # Get setting for TTS
-        char_voice = self.character_profile.get("preferred_edge_voice", None)
-        char_engine = self.character_profile.get("tts_engine", "edge-tts")
-        char_clone_ref = self.character_profile.get("voice_clone_ref", None)
-        char_language = self.character_profile.get("tts_language", "en")
-        speak_enable = get_setting("character_speak", False)
-
-        narrator_voice = get_setting("narration_tts_voice", "en-US-AndrewNeural")
-        narrator_engine = "edge-tts"
-        narration_enable = get_setting("speak_narration", False)
-
-
-        for chunk in get_respond_stream(message, self.character_profile, history_profile_name=self.history_profile_name, is_regeneration=is_regeneration):
-            full_response += chunk
-            current_buffer += chunk
-
-            # Update UI from thread
-            self.app.call_from_thread(ai_msg.update, f"{header}\n{self.format_rp(full_response, role='assistant')}")
-            self.app.call_from_thread(container.scroll_end, animate=False)
-
-            # ---------------------------------------------------------------
-            # Check for split points for TTS
-            if get_setting("tts_enabled", False):
-                split_points = _get_smart_split_points(current_buffer)
-                if split_points:
-                    last_point = 0
-                    for point in split_points:
-                        segment = current_buffer[last_point:point]
-
-                        voice = narrator_voice if tts_in_narration else char_voice
-                        engine = narrator_engine if tts_in_narration else char_engine
-                        clone_ref = None if tts_in_narration else char_clone_ref
-                        language = "en" if tts_in_narration else char_language
-
-                        if '*' in segment:
-                            tts_in_narration = not tts_in_narration
-
-                        cleaned = clean_text_for_tts(segment, speak_narration=True)
-                        if cleaned:
-                            # Only narration enabled: send segments that were narration before toggle
-                            if not speak_enable and narration_enable and (voice == narrator_voice):
-                                self.tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
-                            # Only character speech enabled: send segments that were dialogue before toggle
-                            elif speak_enable and not narration_enable and (voice == char_voice):
-                                self.tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
-                            # Both enabled: send everything
-                            elif speak_enable and narration_enable:
-                                self.tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
-                        last_point = point
-                    current_buffer = current_buffer[last_point:]
-            # ---------------------------------------------------------------
-
-        # After the full response is printed, check if there's any leftover text
-        if get_setting("tts_enabled", False) and current_buffer.strip():
-            cleaned = clean_text_for_tts(current_buffer.strip(), speak_narration=True)
-            if cleaned:
-                # Use current state for final chunk
-                voice = narrator_voice if tts_in_narration else char_voice
-                engine = narrator_engine if tts_in_narration else char_engine
-                clone_ref = None if tts_in_narration else char_clone_ref
-                language = "en" if tts_in_narration else char_language
-                self.tts_text_queue.put((cleaned, voice, engine, clone_ref, language))
+        for event in iterate_response_events(
+            message=message,
+            character_profile=self.character_profile,
+            history_profile_name=self.history_profile_name,
+            is_regeneration=is_regeneration,
+        ):
+            if event["type"] == "chunk":
+                full_response = event["full_response"]
+                self.app.call_from_thread(ai_msg.update, f"{header}\n{self.format_rp(full_response, role='assistant')}")
+                self.app.call_from_thread(container.scroll_end, animate=False)
+            elif event["type"] == "tts":
+                self.tts_text_queue.put(event["payload"])
+            elif event["type"] == "complete":
+                full_response = event["full_response"]
 
         # Add pagination indicator if alternatives exist
         full_history = memory_manager.load_history(self.history_profile_name)
@@ -979,35 +816,28 @@ class TaiMenu(App):
         history_len = memory_manager.get_history_length(self.history_profile_name)
         last_index = memory_manager.get_last_summarized_index(self.history_profile_name)
         limit = get_setting("memory_limit", 15)
-        
-        # We summarize if the unsummarized gap is larger than the window + buffer (5)
-        if (history_len - last_index) > (limit + 5):
-            # We want to summarize everything EXCEPT the last 'limit' messages 
-            # which are kept in active context.
-            to_summarize_count = history_len - limit
-            if to_summarize_count > last_index:
-                full_history = memory_manager.load_history(self.history_profile_name)
-                # Messages to include in the NEW summary part
-                new_messages_to_sum = full_history[last_index:to_summarize_count]
-                
-                self.perform_rolling_summary(new_messages_to_sum, to_summarize_count)
+        to_summarize_count = rolling_summary_target_index(history_len, last_index, limit)
+        if to_summarize_count is not None:
+            full_history = memory_manager.load_history(self.history_profile_name)
+            new_messages_to_sum = full_history[last_index:to_summarize_count]
+            self.perform_rolling_summary(new_messages_to_sum, to_summarize_count)
 
     @work(thread=True)
     def perform_rolling_summary(self, new_messages: list, new_index: int):
         """Background worker to update the Memory Core."""
         existing_core = memory_manager.get_memory_core(self.history_profile_name)
-        summarizer_model = get_setting("summarizer_model", "gemma2:2b")
-        remote_url = get_setting("remote_llm_url")
-        
-        new_core = update_rolling_summary(
-            existing_core, 
-            new_messages, 
-            model=summarizer_model, 
-            remote_url=remote_url,
+        new_core = generate_updated_memory_core(
+            existing_core,
+            new_messages,
             user_name=self.user_name,
-            char_name=self.ch_name
+            char_name=self.ch_name,
         )
-        
+
         # Persist the update
         memory_manager.update_memory_core(self.history_profile_name, new_core, new_index)
         self.log(f"Memory Core updated to index {new_index}")
+
+
+if __name__ == "__main__":
+    app = TaiMenu(char_path=None, user_path=None)
+    app.run()
