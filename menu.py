@@ -582,8 +582,6 @@ class TaiMenu(App):
         # Load history recap if enabled else just load the most recent messages up to the short history limit
         if get_setting("auto_recap_on_start", False) and has_history:
             self.run_recap()
-        else:
-            self.reload_chat_from_history()
 
 
         # Print tip message
