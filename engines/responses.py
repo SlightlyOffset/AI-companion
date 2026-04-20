@@ -10,6 +10,17 @@ import requests
 from datetime import datetime
 from engines.memory_v2 import memory_manager
 from engines.config import get_setting
+from engines.narrative_pipeline import (
+    append_turn_telemetry,
+    build_canonical_state,
+    build_narrative_plan,
+    get_pipeline_flags,
+    needs_critic_pass,
+    rank_candidates,
+    render_pipeline_context,
+    retrieve_memory_stack,
+    update_narrative_state,
+)
 from engines.prompts import build_system_prompt
 from engines.lorebook import load_lorebook, scan_for_lore
 
@@ -175,8 +186,8 @@ def generate_summary(messages: list, model: str, remote_url: str = None, user_na
     except Exception as e:
         return f"Error generating summary: {str(e)}"
 
-def update_rolling_summary(existing_core: str, new_messages: list, model: str, 
-                           remote_url: str = None, user_name: str = "User", 
+def update_rolling_summary(existing_core: str, new_messages: list, model: str,
+                           remote_url: str = None, user_name: str = "User",
                            char_name: str = "Assistant") -> str:
     """
     Consolidates the existing Memory Core with new conversation messages.
@@ -188,7 +199,7 @@ def update_rolling_summary(existing_core: str, new_messages: list, model: str,
         "Maintain bullet points. Focus on character growth and key plot developments. "
         "Always start with '[bold yellow] Memory Core Summary [/bold yellow]'."
     )
-    
+
     formatted_new_history = ""
     for msg in new_messages:
         role = msg.get("role", "unknown")
@@ -221,6 +232,68 @@ def update_rolling_summary(existing_core: str, new_messages: list, model: str,
     except Exception as e:
         return f"Error updating rolling summary: {str(e)}"
 
+
+def _call_llm_once(messages: list, model: str, remote_url: str = None, temperature: float = 0.8, max_tokens: int = 1024) -> str:
+    """Single-turn non-streaming helper used by candidate/reranker pipeline stages."""
+    if remote_url:
+        full_url = f"{remote_url.rstrip('/')}/chat"
+        payload = {"messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+        response = requests.post(full_url, json=payload, stream=False, timeout=90)
+        response.raise_for_status()
+        result = response.json()
+        if isinstance(result, dict):
+            if "choices" in result and result["choices"]:
+                return result["choices"][0]["message"]["content"].strip()
+            if "message" in result and isinstance(result["message"], dict):
+                return result["message"].get("content", "").strip()
+        return ""
+
+    result = ollama.chat(
+        model=model,
+        messages=messages,
+        stream=False,
+        options={"temperature": temperature},
+    )
+    return result["message"]["content"].strip()
+
+
+def _generate_candidate_replies(messages: list, model: str, remote_url: str, candidate_count: int) -> list[str]:
+    candidates = []
+    for index in range(max(1, candidate_count)):
+        temperature = min(1.0, 0.75 + (0.08 * index))
+        try:
+            candidate = _call_llm_once(messages, model=model, remote_url=remote_url, temperature=temperature)
+        except Exception:
+            candidate = ""
+        if candidate:
+            candidates.append(candidate)
+    return candidates
+
+
+def _rewrite_with_critic(messages: list, original_reply: str, model: str, remote_url: str, interaction_mode: str) -> str:
+    repair_instruction = (
+        "Repair the assistant reply to remain strictly in-character, preserve continuity, "
+        "and push the story forward with one concrete beat. "
+        "Do not mention being an AI system or model."
+    )
+    if interaction_mode == "rp":
+        repair_instruction += " Include dialogue and/or narration style naturally."
+    critic_messages = list(messages) + [
+        {
+            "role": "system",
+            "content": repair_instruction,
+        },
+        {
+            "role": "assistant",
+            "content": original_reply,
+        },
+    ]
+    try:
+        rewritten = _call_llm_once(critic_messages, model=model, remote_url=remote_url, temperature=0.5)
+        return rewritten or original_reply
+    except Exception:
+        return original_reply
+
 def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None = None, profile_path: str = None, system_extra_info: str = None, history_profile_name: str = None, is_regeneration: bool = False):
     """
     Generates a streaming response from the LLM (Local Ollama or Remote API).
@@ -249,7 +322,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     full_data = memory_manager.get_full_data(history_profile_name)
     current_scene = full_data.get("metadata", {}).get("current_scene", "Unknown Location")
     memory_core = full_data.get("metadata", {}).get("memory_core", "")
-    
+
     limit = get_setting("memory_limit", 15)
     history = memory_manager.load_history(history_profile_name, limit=limit)
     prompt_history = list(history) if history else []
@@ -264,12 +337,16 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     # Determine relationship score and interaction mode
     rel_score = profile.get("relationship_score", 0)
     interaction_mode = get_setting("interaction_mode", "rp")
+    pipeline_flags = get_pipeline_flags()
+    canonical_state = None
+    memory_stack = None
+    narrative_plan = None
 
     # Handle Dynamic Scene Context and Memory Core
     scene_instruction = f"CURRENT SCENE: {current_scene}. Keep this context in mind."
     if interaction_mode == "rp":
         scene_instruction += " If the location or activity changes significantly, append [SCENE: new location] at the VERY end of your response."
-    
+
     if memory_core:
         # Prepend the Memory Core to provide long-term context
         scene_instruction = f"{memory_core}\n\n{scene_instruction}"
@@ -282,6 +359,25 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         system_extra_info = f"{scene_instruction}\n{system_extra_info}"
     else:
         system_extra_info = scene_instruction
+
+    if pipeline_flags["enabled"]:
+        metadata = full_data.get("metadata", {})
+        canonical_state = build_canonical_state(profile, metadata, user_input) if pipeline_flags["state"] else None
+
+        if pipeline_flags["memory"]:
+            full_history_for_memory = memory_manager.load_history(history_profile_name)
+            memory_stack = retrieve_memory_stack(
+                full_history_for_memory,
+                user_input,
+                short_limit=max(6, min(20, limit)),
+            )
+
+        if pipeline_flags["planner"] and canonical_state is not None:
+            narrative_plan = build_narrative_plan(canonical_state, user_input, interaction_mode)
+
+        if canonical_state is not None:
+            pipeline_context = render_pipeline_context(canonical_state, memory_stack, narrative_plan)
+            system_extra_info = f"{system_extra_info}\n\n{pipeline_context}"
 
     # Set behavioral requirements based on the Mood Engine's 'should_obey' decision
     if should_obey is not None:
@@ -300,7 +396,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
     # Compile message list for the LLM
     messages = [{'role': 'system', 'content': system_content}]
-    
+
     if is_regeneration:
         # If regenerating, we want the LLM to provide a new response to the LAST user message.
         # Remove the trailing assistant turn only from the prompt copy, not from persistent history.
@@ -319,27 +415,65 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         messages.append({'role': 'user', 'content': user_input})
 
     full_reply = ""
+    selected_metrics = {}
+    candidate_metrics = []
+    critic_applied = False
 
     try:
-        # Handle Remote LLM Request
-        if remote_url:
-            full_url = f"{remote_url.rstrip('/')}/chat"
-            payload = {"messages": messages, "temperature": 0.8, "max_tokens": 1024}
-            response = requests.post(full_url, json=payload, stream=True, timeout=60)
-            response.raise_for_status()
-            stream = response.iter_content(chunk_size=None, decode_unicode=True)
-        # Handle Local Ollama Request
-        else:
-            ollama_stream = ollama.chat(model=model, messages=messages, stream=True)
-            def ollama_gen():
-                for chunk in ollama_stream:
-                    yield chunk['message']['content']
-            stream = ollama_gen()
+        if pipeline_flags["enabled"] and (pipeline_flags["candidates"] or pipeline_flags["critic"]):
+            candidate_replies = _generate_candidate_replies(
+                messages,
+                model=model,
+                remote_url=remote_url,
+                candidate_count=pipeline_flags["candidate_count"],
+            )
+            if not candidate_replies:
+                candidate_replies = [_call_llm_once(messages, model=model, remote_url=remote_url, temperature=0.8)]
 
-        # Iterate through the generator stream — yield content directly, no tag filtering needed
-        for content in stream:
-            full_reply += content
-            yield content
+            if canonical_state is None:
+                canonical_state = build_canonical_state(profile, full_data.get("metadata", {}), user_input)
+
+            ranked = rank_candidates(candidate_replies, canonical_state, narrative_plan, interaction_mode)
+            best = ranked[0]
+            reply = best["text"]
+            selected_metrics = best["metrics"]
+            candidate_metrics = [row["metrics"] for row in ranked]
+
+            if pipeline_flags["critic"] and needs_critic_pass(reply, interaction_mode):
+                critic_applied = True
+                reply = _rewrite_with_critic(
+                    messages,
+                    original_reply=reply,
+                    model=model,
+                    remote_url=remote_url,
+                    interaction_mode=interaction_mode,
+                )
+
+            full_reply = reply
+            chunk_size = 60
+            for index in range(0, len(reply), chunk_size):
+                yield reply[index:index + chunk_size]
+        else:
+            # Handle Remote LLM Request
+            if remote_url:
+                full_url = f"{remote_url.rstrip('/')}/chat"
+                payload = {"messages": messages, "temperature": 0.8, "max_tokens": 1024}
+                response = requests.post(full_url, json=payload, stream=True, timeout=60)
+                response.raise_for_status()
+                stream = response.iter_content(chunk_size=None, decode_unicode=True)
+            # Handle Local Ollama Request
+            else:
+                ollama_stream = ollama.chat(model=model, messages=messages, stream=True)
+
+                def ollama_gen():
+                    for chunk in ollama_stream:
+                        yield chunk['message']['content']
+                stream = ollama_gen()
+
+            # Iterate through the generator stream — yield content directly, no tag filtering needed
+            for content in stream:
+                full_reply += content
+                yield content
 
         # Regeneration should be idempotent: do not re-score sentiment or mutate relationship score.
         if is_regeneration:
@@ -362,14 +496,14 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
         # Save the interaction to persistent memory
         full_history = memory_manager.load_history(history_profile_name)
-        
+
         if is_regeneration:
             # Multi-response Logic: Keep all responses in an 'alternatives' list
             if full_history and full_history[-1].get("role") == "assistant":
                 last_msg = full_history[-1]
                 if "alternatives" not in last_msg:
                     last_msg["alternatives"] = [last_msg.get("content", "")]
-                
+
                 last_msg["alternatives"].append(reply)
                 last_msg["selected_index"] = len(last_msg["alternatives"]) - 1
                 last_msg["content"] = reply # Set the visible content to the newest one
@@ -379,8 +513,36 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         else:
             full_history.append({'role': 'user', 'content': user_input})
             full_history.append({'role': 'assistant', 'content': reply})
-            
+
         memory_manager.save_history(history_profile_name, full_history, mood_score=rel_score, current_scene=new_scene)
+
+        if pipeline_flags["enabled"] and pipeline_flags["state"]:
+            previous_state = full_data.get("metadata", {}).get("narrative_state", {})
+            new_state = update_narrative_state(
+                previous_state,
+                user_input=user_input,
+                assistant_reply=reply,
+                sentiment_score=score_change,
+                current_scene=new_scene,
+            )
+            memory_manager.update_narrative_state(
+                history_profile_name,
+                new_state,
+                turn_metrics=selected_metrics,
+            )
+
+        append_turn_telemetry(
+            history_profile_name,
+            {
+                "pipeline_enabled": pipeline_flags["enabled"],
+                "mode": interaction_mode,
+                "candidate_count": len(candidate_metrics),
+                "selected_metrics": selected_metrics,
+                "critic_applied": critic_applied,
+                "memory_flags": (memory_stack or {}).get("continuity_flags", []),
+                "plan": narrative_plan or {},
+            },
+        )
 
     except Exception as e:
         yield f"\n[BRAIN ERROR] {str(e)}"
