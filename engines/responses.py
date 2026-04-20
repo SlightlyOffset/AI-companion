@@ -5,6 +5,7 @@ Handles streaming responses, sentiment parsing, and relationship score updates.
 
 import re
 import json
+import traceback
 import ollama
 import requests
 from datetime import datetime
@@ -17,12 +18,26 @@ from engines.narrative_pipeline import (
     get_pipeline_flags,
     needs_critic_pass,
     rank_candidates,
+    score_candidate,
     render_pipeline_context,
     retrieve_memory_stack,
     update_narrative_state,
 )
 from engines.prompts import build_system_prompt
 from engines.lorebook import load_lorebook, scan_for_lore
+
+
+def _normalize_for_duplicate_check(text: str) -> str:
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return normalized
+
+
+def _is_duplicate_reply(candidate: str, previous_replies: list[str]) -> bool:
+    candidate_norm = _normalize_for_duplicate_check(candidate)
+    if not candidate_norm:
+        return False
+    previous_norm = {_normalize_for_duplicate_check(reply) for reply in previous_replies if reply}
+    return candidate_norm in previous_norm
 
 def apply_mood_decay(profile_path: str, history_profile_name: str):
     """
@@ -396,11 +411,18 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
     # Compile message list for the LLM
     messages = [{'role': 'system', 'content': system_content}]
+    regeneration_previous_replies = []
 
     if is_regeneration:
         # If regenerating, we want the LLM to provide a new response to the LAST user message.
         # Remove the trailing assistant turn only from the prompt copy, not from persistent history.
         if prompt_history and prompt_history[-1].get("role") == "assistant":
+            prior_assistant = prompt_history[-1]
+            alternatives = prior_assistant.get("alternatives", [])
+            if alternatives:
+                regeneration_previous_replies = [alt for alt in alternatives if alt]
+            elif prior_assistant.get("content"):
+                regeneration_previous_replies = [prior_assistant.get("content")]
             prompt_history.pop()
         messages.extend(prompt_history)
         # The user_input passed in is the last user message.
@@ -410,6 +432,16 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
             or prompt_history[-1].get("content") != user_input
         ):
             messages.append({'role': 'user', 'content': user_input})
+
+        if regeneration_previous_replies:
+            replay_block = "\n".join(f"- {reply[:220]}" for reply in regeneration_previous_replies[-3:])
+            messages[0]["content"] = (
+                f"{messages[0]['content']}\n\n"
+                "[REGENERATION DIVERSITY CONSTRAINT]\n"
+                "Generate a substantially different alternative response while preserving canon and scene continuity.\n"
+                "Do not paraphrase the same response structure.\n"
+                f"Previous assistant attempts:\n{replay_block}\n"
+            )
     else:
         messages.extend(prompt_history)
         messages.append({'role': 'user', 'content': user_input})
@@ -435,6 +467,37 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
             ranked = rank_candidates(candidate_replies, canonical_state, narrative_plan, interaction_mode)
             best = ranked[0]
+            if is_regeneration and regeneration_previous_replies:
+                for ranked_item in ranked:
+                    if not _is_duplicate_reply(ranked_item["text"], regeneration_previous_replies):
+                        best = ranked_item
+                        break
+                else:
+                    replay_block = "\n".join(f"- {reply[:220]}" for reply in regeneration_previous_replies[-3:])
+                    diversify_messages = list(messages) + [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Regeneration output must be materially different from previous attempts while preserving canon. "
+                                "Do not paraphrase the same structure.\n"
+                                f"Previous attempts:\n{replay_block}"
+                            ),
+                        }
+                    ]
+                    diversified = _call_llm_once(
+                        diversify_messages,
+                        model=model,
+                        remote_url=remote_url,
+                        temperature=1.05,
+                    ).strip()
+                    if diversified:
+                        best = {
+                            "index": -1,
+                            "text": diversified,
+                            "metrics": score_candidate(diversified, canonical_state, narrative_plan, interaction_mode),
+                        }
+                        ranked = [best] + ranked
+
             reply = best["text"]
             selected_metrics = best["metrics"]
             candidate_metrics = [row["metrics"] for row in ranked]
@@ -455,25 +518,79 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                 yield reply[index:index + chunk_size]
         else:
             # Handle Remote LLM Request
+            generation_temperature = 0.95 if is_regeneration else 0.8
             if remote_url:
                 full_url = f"{remote_url.rstrip('/')}/chat"
-                payload = {"messages": messages, "temperature": 0.8, "max_tokens": 1024}
+                payload = {"messages": messages, "temperature": generation_temperature, "max_tokens": 1024}
                 response = requests.post(full_url, json=payload, stream=True, timeout=60)
                 response.raise_for_status()
                 stream = response.iter_content(chunk_size=None, decode_unicode=True)
             # Handle Local Ollama Request
             else:
-                ollama_stream = ollama.chat(model=model, messages=messages, stream=True)
+                ollama_stream = ollama.chat(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    options={"temperature": generation_temperature},
+                )
 
                 def ollama_gen():
                     for chunk in ollama_stream:
-                        yield chunk['message']['content']
+                        if isinstance(chunk, dict):
+                            message = chunk.get("message", {})
+                            if isinstance(message, dict):
+                                content = message.get("content", "")
+                                if content:
+                                    yield content
+                        elif isinstance(chunk, list):
+                            for nested in chunk:
+                                if isinstance(nested, dict):
+                                    message = nested.get("message", {})
+                                    if isinstance(message, dict):
+                                        content = message.get("content", "")
+                                        if content:
+                                            yield content
                 stream = ollama_gen()
 
-            # Iterate through the generator stream — yield content directly, no tag filtering needed
-            for content in stream:
-                full_reply += content
-                yield content
+            # For regeneration, buffer first so we can detect/retry repetition before emitting UI chunks.
+            if is_regeneration:
+                for content in stream:
+                    full_reply += content
+
+                buffered_reply = full_reply.strip()
+                if (
+                    regeneration_previous_replies
+                    and buffered_reply
+                    and buffered_reply in regeneration_previous_replies
+                ):
+                    retry_messages = list(messages) + [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Your previous attempt matched an earlier response. "
+                                "Generate a materially different continuation that still fits continuity."
+                            ),
+                        }
+                    ]
+                    try:
+                        buffered_reply = _call_llm_once(
+                            retry_messages,
+                            model=model,
+                            remote_url=remote_url,
+                            temperature=1.0,
+                        ).strip() or buffered_reply
+                    except Exception:
+                        pass
+
+                full_reply = buffered_reply
+                chunk_size = 60
+                for index in range(0, len(full_reply), chunk_size):
+                    yield full_reply[index:index + chunk_size]
+            else:
+                # Iterate through the generator stream — yield content directly, no tag filtering needed
+                for content in stream:
+                    full_reply += content
+                    yield content
 
         # Regeneration should be idempotent: do not re-score sentiment or mutate relationship score.
         if is_regeneration:
@@ -535,8 +652,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
             history_profile_name,
             {
                 "pipeline_enabled": pipeline_flags["enabled"],
+                "is_regeneration": is_regeneration,
                 "mode": interaction_mode,
                 "candidate_count": len(candidate_metrics),
+                "candidate_totals": [metrics.get("total", 0) for metrics in candidate_metrics],
                 "selected_metrics": selected_metrics,
                 "critic_applied": critic_applied,
                 "memory_flags": (memory_stack or {}).get("continuity_flags", []),
@@ -545,7 +664,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
         )
 
     except Exception as e:
-        yield f"\n[BRAIN ERROR] {str(e)}"
+        if get_setting("debug_mode", False):
+            yield f"\n[BRAIN ERROR] {traceback.format_exc()}"
+        else:
+            yield f"\n[BRAIN ERROR] {str(e)}"
 
 def get_respond(user_input: str, profile: dict, should_obey: bool = True, profile_path: str = None, is_regeneration: bool = False) -> str:
     """Non-streaming version of the response generator."""
