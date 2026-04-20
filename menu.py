@@ -585,7 +585,9 @@ class TaiMenu(App):
 
 
         # Print tip message
+        self.add_message("Tip: Use [bold]Ctrl+B[/bold] to toggle the sidebar.", role="tip_message")
         self.add_message("Tip: Use [bold]Ctrl+J[/bold] for a newline.", role="tip_message")
+        self.add_message("Tip: Type [bold cyan]//help[/bold cyan] for a list of available commands.", role="tip_message")
 
     def update_sidebar(self):
         """Update the sidebar content including avatars and relationship stats."""
