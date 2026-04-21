@@ -579,7 +579,7 @@ class TaiMenu(App):
         if not has_history:
             self.print_starter_message()
 
-        # Load history recap if enabled else just load the most recent messages up to the short history limit
+        # Run a history recap on startup only when enabled and prior history exists.
         if get_setting("auto_recap_on_start", False) and has_history:
             self.run_recap()
 

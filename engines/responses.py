@@ -453,54 +453,59 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
     try:
         if pipeline_flags["enabled"] and (pipeline_flags["candidates"] or pipeline_flags["critic"]):
-            candidate_replies = _generate_candidate_replies(
-                messages,
-                model=model,
-                remote_url=remote_url,
-                candidate_count=pipeline_flags["candidate_count"],
-            )
-            if not candidate_replies:
-                candidate_replies = [_call_llm_once(messages, model=model, remote_url=remote_url, temperature=0.8)]
-
             if canonical_state is None:
                 canonical_state = build_canonical_state(profile, full_data.get("metadata", {}), user_input)
 
-            ranked = rank_candidates(candidate_replies, canonical_state, narrative_plan, interaction_mode)
-            best = ranked[0]
-            if is_regeneration and regeneration_previous_replies:
-                for ranked_item in ranked:
-                    if not _is_duplicate_reply(ranked_item["text"], regeneration_previous_replies):
-                        best = ranked_item
-                        break
-                else:
-                    replay_block = "\n".join(f"- {reply[:220]}" for reply in regeneration_previous_replies[-3:])
-                    diversify_messages = list(messages) + [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Regeneration output must be materially different from previous attempts while preserving canon. "
-                                "Do not paraphrase the same structure.\n"
-                                f"Previous attempts:\n{replay_block}"
-                            ),
-                        }
-                    ]
-                    diversified = _call_llm_once(
-                        diversify_messages,
-                        model=model,
-                        remote_url=remote_url,
-                        temperature=1.05,
-                    ).strip()
-                    if diversified:
-                        best = {
-                            "index": -1,
-                            "text": diversified,
-                            "metrics": score_candidate(diversified, canonical_state, narrative_plan, interaction_mode),
-                        }
-                        ranked = [best] + ranked
+            if pipeline_flags["candidates"]:
+                candidate_replies = _generate_candidate_replies(
+                    messages,
+                    model=model,
+                    remote_url=remote_url,
+                    candidate_count=pipeline_flags["candidate_count"],
+                )
+                if not candidate_replies:
+                    candidate_replies = [_call_llm_once(messages, model=model, remote_url=remote_url, temperature=0.8)]
 
-            reply = best["text"]
-            selected_metrics = best["metrics"]
-            candidate_metrics = [row["metrics"] for row in ranked]
+                ranked = rank_candidates(candidate_replies, canonical_state, narrative_plan, interaction_mode)
+                best = ranked[0]
+                if is_regeneration and regeneration_previous_replies:
+                    for ranked_item in ranked:
+                        if not _is_duplicate_reply(ranked_item["text"], regeneration_previous_replies):
+                            best = ranked_item
+                            break
+                    else:
+                        replay_block = "\n".join(f"- {reply[:220]}" for reply in regeneration_previous_replies[-3:])
+                        diversify_messages = list(messages) + [
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Regeneration output must be materially different from previous attempts while preserving canon. "
+                                    "Do not paraphrase the same structure.\n"
+                                    f"Previous attempts:\n{replay_block}"
+                                ),
+                            }
+                        ]
+                        diversified = _call_llm_once(
+                            diversify_messages,
+                            model=model,
+                            remote_url=remote_url,
+                            temperature=1.05,
+                        ).strip()
+                        if diversified:
+                            best = {
+                                "index": -1,
+                                "text": diversified,
+                                "metrics": score_candidate(diversified, canonical_state, narrative_plan, interaction_mode),
+                            }
+                            ranked = [best] + ranked
+
+                reply = best["text"]
+                selected_metrics = best["metrics"]
+                candidate_metrics = [row["metrics"] for row in ranked]
+            else:
+                reply = _call_llm_once(messages, model=model, remote_url=remote_url, temperature=0.8).strip()
+                selected_metrics = score_candidate(reply, canonical_state, narrative_plan, interaction_mode)
+                candidate_metrics = [selected_metrics]
 
             if pipeline_flags["critic"] and needs_critic_pass(reply, interaction_mode):
                 critic_applied = True
