@@ -5,10 +5,12 @@ Handles streaming responses, sentiment parsing, and relationship score updates.
 
 import re
 import json
+import time
 import traceback
 import ollama
 import requests
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from engines.memory_v2 import memory_manager
 from engines.config import get_setting
 from engines.narrative_pipeline import (
@@ -273,16 +275,20 @@ def _call_llm_once(messages: list, model: str, remote_url: str = None, temperatu
 
 
 def _generate_candidate_replies(messages: list, model: str, remote_url: str, candidate_count: int) -> list[str]:
-    candidates = []
-    for index in range(max(1, candidate_count)):
-        temperature = min(1.0, 0.75 + (0.08 * index))
+    candidate_count = max(1, candidate_count)
+    candidates = [None] * candidate_count
+
+    def generate_task(idx):
+        temperature = min(1.0, 0.75 + (0.08 * idx))
         try:
-            candidate = _call_llm_once(messages, model=model, remote_url=remote_url, temperature=temperature)
+            return _call_llm_once(messages, model=model, remote_url=remote_url, temperature=temperature)
         except Exception:
-            candidate = ""
-        if candidate:
-            candidates.append(candidate)
-    return candidates
+            return ""
+
+    with ThreadPoolExecutor(max_workers=candidate_count) as executor:
+        results = list(executor.map(generate_task, range(candidate_count)))
+
+    return [r for r in results if r]
 
 
 def _rewrite_with_critic(messages: list, original_reply: str, model: str, remote_url: str, interaction_mode: str) -> str:
@@ -518,9 +524,11 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                 )
 
             full_reply = reply
-            chunk_size = 60
-            for index in range(0, len(reply), chunk_size):
-                yield reply[index:index + chunk_size]
+            # Simulated streaming visual
+            sim_chunk_size = 4
+            for index in range(0, len(reply), sim_chunk_size):
+                yield reply[index : index + sim_chunk_size]
+                time.sleep(0.05)
         else:
             # Handle Remote LLM Request
             generation_temperature = 0.95 if is_regeneration else 0.8
@@ -588,9 +596,11 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                         pass
 
                 full_reply = buffered_reply
-                chunk_size = 60
-                for index in range(0, len(full_reply), chunk_size):
-                    yield full_reply[index:index + chunk_size]
+                # Simulated streaming visual for regeneration
+                sim_chunk_size = 8
+                for index in range(0, len(full_reply), sim_chunk_size):
+                    yield full_reply[index : index + sim_chunk_size]
+                    time.sleep(0.015)
             else:
                 # Iterate through the generator stream — yield content directly, no tag filtering needed
                 for content in stream:
