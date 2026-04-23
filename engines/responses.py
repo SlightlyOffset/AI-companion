@@ -309,6 +309,24 @@ def _call_llm_once(messages: list, model: str, remote_url: str = None, temperatu
 def _generate_candidate_replies(messages: list, model: str, remote_url: str | None = None, candidate_count: int = 1) -> list[str]:
     candidate_count = max(1, candidate_count)
 
+    # Optimization: Batch remote call for Colab/Kaggle
+    if remote_url:
+        try:
+            full_url = f"{remote_url.rstrip('/')}/chat"
+            # Temperature average for the batch
+            payload = {
+                "messages": messages,
+                "temperature": 0.85,
+                "max_tokens": 1024,
+                "n": candidate_count
+            }
+            response = requests.post(full_url, json=payload, stream=False, timeout=120)
+            data = response.json()
+            if isinstance(data, dict) and "candidates" in data:
+                return data["candidates"]
+        except Exception as e:
+            print(f"Batch remote candidate generation failed: {e}. Falling back to sequential.")
+
     def generate_task(idx):
         temperature = min(1.0, 0.75 + (0.08 * idx))
         try:
