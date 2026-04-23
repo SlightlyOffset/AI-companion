@@ -181,7 +181,7 @@ def get_sentiment_score(user_input: str, model: str, remote_url: str = None, pro
     try:
         if remote_url:
             full_url = f"{remote_url.rstrip('/')}/chat"
-            payload = {"messages": messages, "temperature": 0.0, "max_tokens": 20}
+            payload = {"messages": messages, "temperature": 0.1, "max_tokens": 20}
             response = requests.post(full_url, json=payload, stream=False, timeout=10)
             text = response.text
         else:
