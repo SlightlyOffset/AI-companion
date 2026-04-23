@@ -28,6 +28,12 @@ from engines.narrative_pipeline import (
 from engines.prompts import build_system_prompt
 from engines.lorebook import load_lorebook, scan_for_lore
 
+MAX_CANDIDATE_WORKERS = 4
+SIM_STREAM_CHUNK_SIZE = 32
+SIM_STREAM_DELAY_SECONDS = 0.001
+SIM_STREAM_REGEN_CHUNK_SIZE = 32
+SIM_STREAM_REGEN_DELAY_SECONDS = 0.001
+
 
 def _normalize_for_duplicate_check(text: str) -> str:
     normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
@@ -274,9 +280,8 @@ def _call_llm_once(messages: list, model: str, remote_url: str = None, temperatu
     return result["message"]["content"].strip()
 
 
-def _generate_candidate_replies(messages: list, model: str, remote_url: str, candidate_count: int) -> list[str]:
+def _generate_candidate_replies(messages: list, model: str, remote_url: str | None = None, candidate_count: int = 1) -> list[str]:
     candidate_count = max(1, candidate_count)
-    candidates = [None] * candidate_count
 
     def generate_task(idx):
         temperature = min(1.0, 0.75 + (0.08 * idx))
@@ -285,7 +290,8 @@ def _generate_candidate_replies(messages: list, model: str, remote_url: str, can
         except Exception:
             return ""
 
-    with ThreadPoolExecutor(max_workers=candidate_count) as executor:
+    max_workers = min(candidate_count, MAX_CANDIDATE_WORKERS)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(generate_task, range(candidate_count)))
 
     return [r for r in results if r]
@@ -525,10 +531,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
             full_reply = reply
             # Simulated streaming visual
-            sim_chunk_size = 4
+            sim_chunk_size = SIM_STREAM_CHUNK_SIZE
             for index in range(0, len(reply), sim_chunk_size):
                 yield reply[index : index + sim_chunk_size]
-                time.sleep(0.05)
+                time.sleep(SIM_STREAM_DELAY_SECONDS)
         else:
             # Handle Remote LLM Request
             generation_temperature = 0.95 if is_regeneration else 0.8
@@ -597,10 +603,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
 
                 full_reply = buffered_reply
                 # Simulated streaming visual for regeneration
-                sim_chunk_size = 8
+                sim_chunk_size = SIM_STREAM_REGEN_CHUNK_SIZE
                 for index in range(0, len(full_reply), sim_chunk_size):
                     yield full_reply[index : index + sim_chunk_size]
-                    time.sleep(0.015)
+                    time.sleep(SIM_STREAM_REGEN_DELAY_SECONDS)
             else:
                 # Iterate through the generator stream — yield content directly, no tag filtering needed
                 for content in stream:
