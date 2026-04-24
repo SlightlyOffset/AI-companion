@@ -4,6 +4,7 @@ Handles streaming responses, sentiment parsing, and relationship score updates.
 """
 
 import re
+import threading
 import json
 import time
 import traceback
@@ -161,12 +162,14 @@ def update_profile_score(profile_path: str, score_change: int):
 def get_sentiment_score(user_input: str, model: str, remote_url: str = None, profile: dict = None) -> int:
     """
     Makes a separate lightweight LLM call to score the sentiment of the user's message.
-    Runs after the main stream completes, so it never blocks or pollutes the response.
+    Always runs locally via Ollama to avoid blocking the remote GPU.
 
     Returns:
         int: A score from -5 to +5.
     """
     char_name = profile.get("name", "the character") if profile else "the character"
+    utility_model = get_setting("local_utility_model", "llama3.2")
+    
     messages = [
         {
             "role": "system",
@@ -179,20 +182,21 @@ def get_sentiment_score(user_input: str, model: str, remote_url: str = None, pro
         {"role": "user", "content": user_input}
     ]
     try:
-        if remote_url:
-            full_url = f"{remote_url.rstrip('/')}/chat"
-            payload = {"messages": messages, "temperature": 0.1, "max_tokens": 20}
-            response = requests.post(full_url, json=payload, stream=False, timeout=10)
-            text = response.text
-        else:
-            result = ollama.chat(model=model, messages=messages, stream=False)
-            text = result['message']['content']
+        # Hybrid Offloading: Utility tasks are always local
+        result = ollama.chat(
+            model=utility_model, 
+            messages=messages, 
+            stream=False,
+            options={"temperature": 0.1}
+        )
+        text = result['message']['content']
 
         match = re.search(r'"rel":\s*([+-]?\d+)', text)
         if match:
             return max(-5, min(5, int(match.group(1))))
-    except Exception:
-        pass
+    except Exception as e:
+        if get_setting("debug_mode", False):
+            print(f"Local sentiment scoring failed: {e}")
     return 0
 
 def generate_summary(messages: list, model: str, remote_url: str = None, user_name: str = "User", char_name: str = "Assistant") -> str:
@@ -233,15 +237,10 @@ def generate_summary(messages: list, model: str, remote_url: str = None, user_na
     ]
 
     try:
-        if remote_url:
-            full_url = f"{remote_url.rstrip('/')}/chat"
-            # OpenAI-compatible API call
-            payload = {"messages": summary_messages, "temperature": 0.3, "max_tokens": 500}
-            response = requests.post(full_url, json=payload, stream=False, timeout=60)
-            return _extract_remote_message_content(response)
-        else:
-            result = ollama.chat(model=model, messages=summary_messages, stream=False)
-            return result['message']['content'].strip()
+        # Hybrid Offloading: Summarization is always local
+        utility_model = get_setting("local_utility_model", "llama3.2")
+        result = ollama.chat(model=utility_model, messages=summary_messages, stream=False)
+        return result['message']['content'].strip()
     except Exception as e:
         return f"Error generating summary: {str(e)}"
 
@@ -250,6 +249,7 @@ def update_rolling_summary(existing_core: str, new_messages: list, model: str,
                            char_name: str = "Assistant") -> str:
     """
     Consolidates the existing Memory Core with new conversation messages.
+    Always runs locally via Ollama to avoid blocking the remote GPU.
     """
     summary_prompt = (
         f"You are updating the Memory Core for {char_name}. "
@@ -277,14 +277,10 @@ def update_rolling_summary(existing_core: str, new_messages: list, model: str,
     ]
 
     try:
-        if remote_url:
-            full_url = f"{remote_url.rstrip('/')}/chat"
-            payload = {"messages": summary_messages, "temperature": 0.3, "max_tokens": 600}
-            response = requests.post(full_url, json=payload, stream=False, timeout=60)
-            return _extract_remote_message_content(response)
-        else:
-            result = ollama.chat(model=model, messages=summary_messages, stream=False)
-            return result['message']['content'].strip()
+        # Hybrid Offloading: Summarization is always local
+        utility_model = get_setting("local_utility_model", "llama3.2")
+        result = ollama.chat(model=utility_model, messages=summary_messages, stream=False)
+        return result['message']['content'].strip()
     except Exception as e:
         return f"Error updating rolling summary: {str(e)}"
 
@@ -364,6 +360,99 @@ def _rewrite_with_critic(messages: list, original_reply: str, model: str, remote
         return rewritten or original_reply
     except Exception:
         return original_reply
+
+def _perform_post_processing(
+    user_input: str,
+    model: str,
+    remote_url: str,
+    profile: dict,
+    profile_path: str,
+    history_profile_name: str,
+    is_regeneration: bool,
+    full_reply: str,
+    current_scene: str,
+    rel_score: int,
+    pipeline_flags: dict,
+    canonical_state: any,
+    narrative_plan: any,
+    memory_stack: any,
+    selected_metrics: dict,
+    candidate_metrics: list,
+    critic_applied: bool,
+):
+    """Handles background tasks like sentiment scoring and saving history."""
+    try:
+        reply = full_reply.strip()
+        new_scene = current_scene
+        
+        # Parse for scene updates
+        scene_match = re.search(r'\[SCENE:\s*(.*?)\]', reply)
+        if scene_match:
+            new_scene = scene_match.group(1).strip()
+            reply = re.sub(r'\[SCENE:\s*.*?\]', '', reply).strip()
+
+        # Score sentiment
+        if is_regeneration:
+            score_change = 0
+        else:
+            score_change = get_sentiment_score(user_input, model, remote_url, profile)
+
+        # Persist relationship update
+        if profile_path and score_change != 0:
+            update_profile_score(profile_path, score_change)
+
+        # Save to persistent memory
+        full_history = memory_manager.load_history(history_profile_name)
+        if is_regeneration:
+            if full_history and full_history[-1].get("role") == "assistant":
+                last_msg = full_history[-1]
+                if "alternatives" not in last_msg:
+                    last_msg["alternatives"] = [last_msg.get("content", "")]
+                last_msg["alternatives"].append(reply)
+                last_msg["selected_index"] = len(last_msg["alternatives"]) - 1
+                last_msg["content"] = reply
+        else:
+            full_history.append({'role': 'user', 'content': user_input})
+            full_history.append({'role': 'assistant', 'content': reply})
+
+        memory_manager.save_history(history_profile_name, full_history, mood_score=rel_score, current_scene=new_scene)
+
+        # Update Narrative State
+        if pipeline_flags["enabled"] and pipeline_flags["state"]:
+            # Need to reload metadata as it might have changed
+            full_data = memory_manager.get_full_data(history_profile_name)
+            previous_state = full_data.get("metadata", {}).get("narrative_state", {})
+            new_state = update_narrative_state(
+                previous_state,
+                user_input=user_input,
+                assistant_reply=reply,
+                sentiment_score=score_change,
+                current_scene=new_scene,
+            )
+            memory_manager.update_narrative_state(
+                history_profile_name,
+                new_state,
+                turn_metrics=selected_metrics,
+            )
+
+        # Telemetry
+        append_turn_telemetry(
+            history_profile_name,
+            {
+                "pipeline_enabled": pipeline_flags["enabled"],
+                "is_regeneration": is_regeneration,
+                "mode": get_setting("interaction_mode", "rp"),
+                "candidate_count": len(candidate_metrics),
+                "candidate_totals": [metrics.get("total", 0) for metrics in candidate_metrics],
+                "selected_metrics": selected_metrics,
+                "critic_applied": critic_applied,
+                "memory_flags": (memory_stack or {}).get("continuity_flags", []),
+                "plan": narrative_plan or {},
+            },
+        )
+    except Exception as e:
+        print(f"Background post-processing failed: {e}")
+        traceback.print_exc()
 
 def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None = None, profile_path: str = None, system_extra_info: str = None, history_profile_name: str = None, is_regeneration: bool = False):
     """
@@ -657,76 +746,31 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                     full_reply += content
                     yield content
 
-        # Regeneration should be idempotent: do not re-score sentiment or mutate relationship score.
-        if is_regeneration:
-            score_change = 0
-        else:
-            score_change = get_sentiment_score(user_input, model, remote_url, profile)
-        reply = full_reply.strip()
-
-        # Parse for scene updates
-        new_scene = current_scene
-        scene_match = re.search(r'\[SCENE:\s*(.*?)\]', reply)
-        if scene_match:
-            new_scene = scene_match.group(1).strip()
-            # Clean the tag from the final saved history
-            reply = re.sub(r'\[SCENE:\s*.*?\]', '', reply).strip()
-
-        # Persist the relationship update
-        if profile_path and score_change != 0:
-            update_profile_score(profile_path, score_change)
-
-        # Save the interaction to persistent memory
-        full_history = memory_manager.load_history(history_profile_name)
-
-        if is_regeneration:
-            # Multi-response Logic: Keep all responses in an 'alternatives' list
-            if full_history and full_history[-1].get("role") == "assistant":
-                last_msg = full_history[-1]
-                if "alternatives" not in last_msg:
-                    last_msg["alternatives"] = [last_msg.get("content", "")]
-
-                last_msg["alternatives"].append(reply)
-                last_msg["selected_index"] = len(last_msg["alternatives"]) - 1
-                last_msg["content"] = reply # Set the visible content to the newest one
-            else:
-                # Fallback if history state is weird
-                full_history.append({'role': 'assistant', 'content': reply})
-        else:
-            full_history.append({'role': 'user', 'content': user_input})
-            full_history.append({'role': 'assistant', 'content': reply})
-
-        memory_manager.save_history(history_profile_name, full_history, mood_score=rel_score, current_scene=new_scene)
-
-        if pipeline_flags["enabled"] and pipeline_flags["state"]:
-            previous_state = full_data.get("metadata", {}).get("narrative_state", {})
-            new_state = update_narrative_state(
-                previous_state,
-                user_input=user_input,
-                assistant_reply=reply,
-                sentiment_score=score_change,
-                current_scene=new_scene,
-            )
-            memory_manager.update_narrative_state(
-                history_profile_name,
-                new_state,
-                turn_metrics=selected_metrics,
-            )
-
-        append_turn_telemetry(
-            history_profile_name,
-            {
-                "pipeline_enabled": pipeline_flags["enabled"],
+        # Spawn background post-processing thread (Hybrid + Async)
+        post_process_thread = threading.Thread(
+            target=_perform_post_processing,
+            kwargs={
+                "user_input": user_input,
+                "model": model,
+                "remote_url": remote_url,
+                "profile": profile,
+                "profile_path": profile_path,
+                "history_profile_name": history_profile_name,
                 "is_regeneration": is_regeneration,
-                "mode": interaction_mode,
-                "candidate_count": len(candidate_metrics),
-                "candidate_totals": [metrics.get("total", 0) for metrics in candidate_metrics],
+                "full_reply": full_reply,
+                "current_scene": current_scene,
+                "rel_score": rel_score,
+                "pipeline_flags": pipeline_flags,
+                "canonical_state": canonical_state,
+                "narrative_plan": narrative_plan,
+                "memory_stack": memory_stack,
                 "selected_metrics": selected_metrics,
+                "candidate_metrics": candidate_metrics,
                 "critic_applied": critic_applied,
-                "memory_flags": (memory_stack or {}).get("continuity_flags", []),
-                "plan": narrative_plan or {},
             },
+            daemon=True,
         )
+        post_process_thread.start()
 
     except Exception as e:
         if get_setting("debug_mode", False):
