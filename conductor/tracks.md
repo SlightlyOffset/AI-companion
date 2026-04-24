@@ -50,5 +50,13 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: Lorebook Implementation**
-*Link: [./tracks/lorebook_20260412/](./tracks/lorebook_20260412/)*
+---
 
+- [ ] **Track: Hybrid Offloading & Async Post-Processing**
+*Link: [./tracks/hybrid_offloading_20260423/](./tracks/hybrid_offloading_20260423/)*
+
+
+---
+
+- [x] **Track: Dual-Worker GPU Pool Architecture**
+*Link: [./tracks/dual_gpu_pool_20260424/](./tracks/dual_gpu_pool_20260424/)*

@@ -13,5 +13,5 @@
 - [x] Ensure strict locking per-GPU so a single GPU is never tasked with concurrent generations. [d387d28]
 
 ## Phase 3: Validation
-- [ ] Test with `n=4` from the local app and verify the bridge handles it without crashing.
-- [ ] Verify stream requests during background reranking still process smoothly.
+- [x] Test with `n=4` from the local app and verify the bridge handles it without crashing.
+- [x] Verify stream requests during background reranking still process smoothly.
