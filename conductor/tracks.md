@@ -52,3 +52,23 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Lorebook Implementation**
 *Link: [./tracks/lorebook_20260412/](./tracks/lorebook_20260412/)*
 
+---
+
+- [ ] **Track: Hybrid Offloading & Async Post-Processing**
+*Link: [./tracks/hybrid_offloading_20260423/](./tracks/hybrid_offloading_20260423/)*
+
+---
+
+- [ ] **Track: Remote Semantic RAG (Colab/Kaggle Offloading)**
+*Link: [./tracks/remote_semantic_rag_20260427/](./tracks/remote_semantic_rag_20260427/)*
+
+---
+
+- [ ] **Track: Cloudflare Bridge Tunneling**
+*Link: [./tracks/cloudflare_bridge_tunnel_20260427/](./tracks/cloudflare_bridge_tunnel_20260427/)*
+
+
+---
+
+- [x] **Track: Dual-Worker GPU Pool Architecture**
+*Link: [./archive/dual_gpu_pool_20260424/](./archive/dual_gpu_pool_20260424/)*
