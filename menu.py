@@ -45,6 +45,7 @@ from engines.recap_service import (
 from engines.response_orchestrator import iterate_response_events
 from engines.tts_module import generate_audio, play_audio
 from engines.memory_v2 import memory_manager
+from engines.lorebook import sync_lore_to_remote, load_lorebook
 
 # Ensure the project root is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -537,6 +538,19 @@ class TaiMenu(App):
 
         self.app.call_from_thread(update_ui)
 
+    @work(thread=True)
+    def _sync_lore_worker(self, remote_url: str, lorebook_data: dict) -> None:
+        """Worker for syncing lore to remote bridge in the background."""
+        try:
+            success = sync_lore_to_remote(lorebook_data, remote_url)
+            if success:
+                self.app.call_from_thread(
+                    lambda: self.add_message("✓ Lore synced to remote bridge", role="system")
+                )
+        except Exception as e:
+            if get_setting("debug_mode", False):
+                print(f"Lore sync worker error: {e}")
+
     def load_initial_state(self) -> None:
         """Loads profiles and settings based on pre-selected paths or settings.json."""
         self.char_path, self.user_path = resolve_selected_paths(self.char_path, self.user_path)
@@ -572,6 +586,15 @@ class TaiMenu(App):
 
         self.update_sidebar()
         self.add_message(f"Loaded character profile: [bold]{self.ch_name}[/bold]", role="system")
+
+        # Sync lore to remote bridge if configured
+        remote_url = get_setting("remote_llm_url")
+        if remote_url and self.character_profile:
+            lore_file = self.character_profile.get("lorebook_path") or "lorebooks/default.json"
+            lorebook_data = load_lorebook(lore_file)
+            if lorebook_data.get("entries"):
+                self.run_in_worker(self._sync_lore_worker, remote_url, lorebook_data)
+
 
         # Print character's starter messages and save to memory (if any, which should always be any)
         # Only do this if the history doesn't exist yet, to avoid repeating starter messages on every launch
