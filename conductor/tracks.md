@@ -54,8 +54,15 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remote Semantic RAG (Colab/Kaggle Offloading)**
+- [x] **Track: Remote Semantic RAG (Colab/Kaggle Offloading)**
 *Link: [./tracks/remote_semantic_rag_20260427/](./tracks/remote_semantic_rag_20260427/)*
+
+---
+
+- [ ] **Track: Agentic Intelligence Integration (AI Agent with Task Execution)**
+*Link: [./tracks/agentic_intelligence_20260430/](./tracks/agentic_intelligence_20260430/)*
+**Status:** Design & Specification (Phase 0)
+**Description:** Transform t.ai from chat-only to autonomous agent capable of: instruction classification, action planning, skill execution (file I/O, code generation, app launching, system commands), permission management, memory enhancement, and autonomous heartbeat scheduling. 4-phase implementation plan covering foundation, extended skills, autonomous tasks, and safety/polish.
 
 ---
 
