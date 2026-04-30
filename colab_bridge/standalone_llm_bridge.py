@@ -24,10 +24,18 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    SentenceTransformer = None
 
 
 # Setup logging
@@ -36,6 +44,122 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+class LoreManager:
+    """Manages vector embeddings and semantic retrieval of lore entries."""
+    
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        self.model_name = model_name
+        self.model = None
+        self.lore_entries = []
+        self.embeddings = None
+        
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            try:
+                logger.info(f"Loading embedding model: {model_name}")
+                self.model = SentenceTransformer(model_name)
+                logger.info("Embedding model loaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to load embedding model: {e}")
+                SENTENCE_TRANSFORMERS_AVAILABLE = False
+    
+    def embed_and_index(self, lorebook: dict) -> bool:
+        """
+        Embed all lore entries and store them in memory.
+        
+        Args:
+            lorebook: Dictionary with 'entries' list containing lore items
+            
+        Returns:
+            bool: True if indexing succeeded, False otherwise
+        """
+        if not self.model:
+            logger.warning("Embedding model not available; RAG disabled")
+            return False
+        
+        try:
+            entries = lorebook.get("entries", [])
+            if not entries:
+                logger.warning("Lorebook has no entries to index")
+                self.lore_entries = []
+                self.embeddings = np.array([])
+                return True
+            
+            # Filter and prepare entries
+            self.lore_entries = [
+                entry for entry in entries 
+                if entry.get("enabled", True)
+            ]
+            
+            if not self.lore_entries:
+                logger.info("No enabled lore entries to index")
+                self.embeddings = np.array([])
+                return True
+            
+            # Extract text content to embed
+            texts_to_embed = [
+                f"{entry.get('title', '')} {entry.get('content', '')}"
+                for entry in self.lore_entries
+            ]
+            
+            logger.info(f"Embedding {len(texts_to_embed)} lore entries...")
+            self.embeddings = self.model.encode(texts_to_embed, convert_to_numpy=True)
+            logger.info(f"Successfully indexed {len(self.lore_entries)} lore entries")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to embed and index lorebook: {e}")
+            return False
+    
+    def retrieve_top_k(self, query: str, k: int = 3) -> list[str]:
+        """
+        Retrieve top K most similar lore entries using cosine similarity.
+        
+        Args:
+            query: User's message to search for
+            k: Number of top entries to retrieve
+            
+        Returns:
+            list[str]: Formatted lore entries, or empty list if retrieval failed
+        """
+        if not self.model or not self.lore_entries or len(self.lore_entries) == 0:
+            return []
+        
+        try:
+            # Embed the query
+            query_embedding = self.model.encode(query, convert_to_numpy=True)
+            
+            # Compute cosine similarity
+            try:
+                from sklearn.metrics.pairwise import cosine_similarity
+                similarities = cosine_similarity([query_embedding], self.embeddings)[0]
+            except ImportError:
+                logger.warning("scikit-learn not available; using numpy cosine similarity")
+                # Fallback: manual cosine similarity using numpy
+                from numpy.linalg import norm
+                query_norm = norm(query_embedding)
+                embedding_norms = np.linalg.norm(self.embeddings, axis=1)
+                similarities = np.dot(self.embeddings, query_embedding) / (embedding_norms * query_norm + 1e-8)
+            
+            # Get top K indices
+            top_k_indices = np.argsort(similarities)[::-1][:k]
+            
+            # Filter by threshold (only return if similarity > 0.3)
+            relevant_entries = []
+            for idx in top_k_indices:
+                if similarities[idx] > 0.3:
+                    entry = self.lore_entries[idx]
+                    relevant_entries.append(
+                        f"[LORE: {entry.get('title', 'Unknown')}]\n{entry.get('content', '')}"
+                    )
+            
+            return relevant_entries
+            
+        except Exception as e:
+            logger.error(f"Error retrieving lore: {e}")
+            return []
+
 
 
 class Message(BaseModel):
@@ -48,6 +172,12 @@ class ChatRequest(BaseModel):
     max_tokens: int = 1024
     temperature: float = 0.8
     model: str = "default"
+    use_rag: bool = False
+
+
+class SyncLoreRequest(BaseModel):
+    entries: list = []
+
 
 
 class TunnelManager:
@@ -220,9 +350,12 @@ class TunnelManager:
                     pass
 
 
-def create_app(tunnel_manager: Optional[TunnelManager] = None) -> FastAPI:
+def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Optional[LoreManager] = None) -> FastAPI:
     """Create FastAPI app for the bridge."""
     app = FastAPI(title="LLM Bridge", version="1.0.0")
+    
+    if lore_manager is None:
+        lore_manager = LoreManager()
     
     @app.get("/health")
     async def health_check():
@@ -230,16 +363,76 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None) -> FastAPI:
         return {
             "status": "healthy",
             "tunnel_type": tunnel_manager.tunnel_type if tunnel_manager else "none",
-            "public_url": tunnel_manager.public_url if tunnel_manager else None
+            "public_url": tunnel_manager.public_url if tunnel_manager else None,
+            "rag_enabled": bool(lore_manager.model),
+            "lore_entries_indexed": len(lore_manager.lore_entries)
         }
+    
+    @app.post("/sync_lore")
+    async def sync_lore(request: dict):
+        """Sync and index lorebook entries for semantic retrieval."""
+        try:
+            if not lore_manager.model:
+                return {
+                    "status": "error",
+                    "message": "Embedding model not available; RAG disabled"
+                }
+            
+            lorebook = {"entries": request.get("entries", [])}
+            success = lore_manager.embed_and_index(lorebook)
+            
+            if success:
+                return {
+                    "status": "success",
+                    "message": f"Indexed {len(lore_manager.lore_entries)} lore entries",
+                    "entries_count": len(lore_manager.lore_entries)
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "Failed to index lorebook"
+                }
+        except Exception as e:
+            logger.error(f"Error in /sync_lore: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
     
     @app.post("/chat")
     async def chat(request: ChatRequest):
-        """Chat endpoint that streams responses."""
-        logger.info(f"Chat request with {len(request.messages)} messages")
+        """Chat endpoint that streams responses, with optional server-side RAG."""
+        logger.info(f"Chat request with {len(request.messages)} messages, use_rag={request.use_rag}")
+        
+        # Prepare messages for LLM
+        messages = [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.messages
+        ]
+        
+        # Server-side RAG: retrieve lore and inject into system prompt
+        if request.use_rag and lore_manager.model and len(messages) > 0:
+            # Get the user's latest message for RAG query
+            user_message = None
+            for msg in reversed(messages):
+                if msg["role"] == "user":
+                    user_message = msg["content"]
+                    break
+            
+            if user_message:
+                retrieved_lore = lore_manager.retrieve_top_k(user_message, k=3)
+                if retrieved_lore:
+                    lore_text = "\n\n".join(retrieved_lore)
+                    logger.info(f"Retrieved {len(retrieved_lore)} lore entries via semantic search")
+                    
+                    # Inject into system prompt
+                    for i, msg in enumerate(messages):
+                        if msg["role"] == "system":
+                            messages[i]["content"] = f"{lore_text}\n\n{msg['content']}"
+                            break
         
         # This is a placeholder implementation
-        # In a real scenario, this would connect to an LLM
+        # In a real scenario, this would connect to an LLM (Ollama, vLLM, etc.)
         async def generate():
             yield "This is a placeholder response from the LLM Bridge. "
             yield "In a production setup, this would connect to your actual LLM endpoint."
@@ -249,9 +442,10 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None) -> FastAPI:
     return app
 
 
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Standalone LLM Bridge with optional tunneling"
+        description="Standalone LLM Bridge with optional tunneling and semantic RAG"
     )
     parser.add_argument(
         "--tunnel",
@@ -276,6 +470,9 @@ def main():
     # Create tunnel manager
     tunnel_manager = TunnelManager(tunnel_type=args.tunnel, local_port=args.port)
     
+    # Create LoreManager for semantic RAG
+    lore_manager = LoreManager()
+    
     # Start tunnel if enabled
     if args.tunnel != "none":
         public_url = tunnel_manager.start()
@@ -284,7 +481,7 @@ def main():
             sys.exit(1)
     
     # Create FastAPI app
-    app = create_app(tunnel_manager)
+    app = create_app(tunnel_manager, lore_manager)
     
     # Run server
     logger.info(f"Starting server on {args.host}:{args.port}")
@@ -300,6 +497,7 @@ def main():
     finally:
         if tunnel_manager:
             tunnel_manager._cleanup()
+
 
 
 if __name__ == "__main__":
