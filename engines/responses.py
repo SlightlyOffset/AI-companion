@@ -27,7 +27,7 @@ from engines.narrative_pipeline import (
     update_narrative_state,
 )
 from engines.prompts import build_system_prompt
-from engines.lorebook import load_lorebook, scan_for_lore
+from engines.lorebook import load_lorebook, scan_for_lore, sync_lore_to_remote
 
 MAX_CANDIDATE_WORKERS = 4
 SIM_STREAM_CHUNK_SIZE = 32
@@ -314,7 +314,8 @@ def _generate_candidate_replies(messages: list, model: str, remote_url: str | No
                 "messages": messages,
                 "temperature": 0.85,
                 "max_tokens": 1024,
-                "n": candidate_count
+                "n": candidate_count,
+                "use_rag": True
             }
             response = requests.post(full_url, json=payload, stream=False, timeout=120)
             response.raise_for_status()
@@ -506,11 +507,15 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     prompt_history = list(history) if history else []
 
     # 1. Lorebook Scanning
-    # Scan recent history (last 3 messages) + current user input for keywords
-    lore_file = profile.get("lorebook_path") or "lorebooks/default.json"
-    lorebook_data = load_lorebook(lore_file)
-    recent_context = history[-3:] + [{'role': 'user', 'content': user_input}]
-    activated_lore = scan_for_lore(recent_context, lorebook_data)
+    # Skip local scanning if using remote RAG (server handles it internally)
+    activated_lore = ""
+    if not remote_url:
+        # Scan recent history (last 3 messages) + current user input for keywords
+        lore_file = profile.get("lorebook_path") or "lorebooks/default.json"
+        lorebook_data = load_lorebook(lore_file)
+        recent_context = history[-3:] + [{'role': 'user', 'content': user_input}]
+        activated_lore = scan_for_lore(recent_context, lorebook_data)
+
 
     # Determine relationship score and interaction mode
     rel_score = profile.get("relationship_score", 0)
@@ -691,7 +696,12 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
             generation_temperature = 0.95 if is_regeneration else 0.8
             if remote_url:
                 full_url = f"{remote_url.rstrip('/')}/chat"
-                payload = {"messages": messages, "temperature": generation_temperature, "max_tokens": 1024}
+                payload = {
+                    "messages": messages, 
+                    "temperature": generation_temperature, 
+                    "max_tokens": 1024,
+                    "use_rag": True
+                }
                 response = requests.post(full_url, json=payload, stream=True, timeout=60)
                 response.raise_for_status()
                 stream = response.iter_content(chunk_size=None, decode_unicode=True)
