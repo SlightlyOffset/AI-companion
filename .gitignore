@@ -73,3 +73,6 @@ pyproject.toml
 
 # Icon file
 t-ai.png
+
+# Security reports
+.gemini_security/
