@@ -48,13 +48,14 @@ logger = logging.getLogger(__name__)
 
 class LoreManager:
     """Manages vector embeddings and semantic retrieval of lore entries."""
-    
+
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        global SENTENCE_TRANSFORMERS_AVAILABLE
         self.model_name = model_name
         self.model = None
         self.lore_entries = []
         self.embeddings = None
-        
+
         if SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
                 logger.info(f"Loading embedding model: {model_name}")
@@ -63,21 +64,21 @@ class LoreManager:
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
                 SENTENCE_TRANSFORMERS_AVAILABLE = False
-    
+
     def embed_and_index(self, lorebook: dict) -> bool:
         """
         Embed all lore entries and store them in memory.
-        
+
         Args:
             lorebook: Dictionary with 'entries' list containing lore items
-            
+
         Returns:
             bool: True if indexing succeeded, False otherwise
         """
         if not self.model:
             logger.warning("Embedding model not available; RAG disabled")
             return False
-        
+
         try:
             entries = lorebook.get("entries", [])
             if not entries:
@@ -85,66 +86,58 @@ class LoreManager:
                 self.lore_entries = []
                 self.embeddings = np.array([])
                 return True
-            
+
             # Filter and prepare entries
             self.lore_entries = [
-                entry for entry in entries 
+                entry for entry in entries
                 if entry.get("enabled", True)
             ]
-            
+
             if not self.lore_entries:
                 logger.info("No enabled lore entries to index")
                 self.embeddings = np.array([])
                 return True
-            
+
             # Extract text content to embed
             texts_to_embed = [
                 f"{entry.get('title', '')} {entry.get('content', '')}"
                 for entry in self.lore_entries
             ]
-            
+
             logger.info(f"Embedding {len(texts_to_embed)} lore entries...")
             self.embeddings = self.model.encode(texts_to_embed, convert_to_numpy=True)
             logger.info(f"Successfully indexed {len(self.lore_entries)} lore entries")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to embed and index lorebook: {e}")
             return False
-    
+
     def retrieve_top_k(self, query: str, k: int = 3) -> list[str]:
         """
         Retrieve top K most similar lore entries using cosine similarity.
-        
+
         Args:
             query: User's message to search for
             k: Number of top entries to retrieve
-            
+
         Returns:
             list[str]: Formatted lore entries, or empty list if retrieval failed
         """
         if not self.model or not self.lore_entries or len(self.lore_entries) == 0:
             return []
-        
+
         try:
             # Embed the query
             query_embedding = self.model.encode(query, convert_to_numpy=True)
-            
+
             # Compute cosine similarity
-            try:
-                from sklearn.metrics.pairwise import cosine_similarity
-                similarities = cosine_similarity([query_embedding], self.embeddings)[0]
-            except ImportError:
-                logger.warning("scikit-learn not available; using numpy cosine similarity")
-                # Fallback: manual cosine similarity using numpy
-                from numpy.linalg import norm
-                query_norm = norm(query_embedding)
-                embedding_norms = np.linalg.norm(self.embeddings, axis=1)
-                similarities = np.dot(self.embeddings, query_embedding) / (embedding_norms * query_norm + 1e-8)
-            
+            from sklearn.metrics.pairwise import cosine_similarity
+            similarities = cosine_similarity([query_embedding], self.embeddings)[0]
+
             # Get top K indices
             top_k_indices = np.argsort(similarities)[::-1][:k]
-            
+
             # Filter by threshold (only return if similarity > 0.3)
             relevant_entries = []
             for idx in top_k_indices:
@@ -153,13 +146,12 @@ class LoreManager:
                     relevant_entries.append(
                         f"[LORE: {entry.get('title', 'Unknown')}]\n{entry.get('content', '')}"
                     )
-            
+
             return relevant_entries
-            
+
         except Exception as e:
             logger.error(f"Error retrieving lore: {e}")
             return []
-
 
 
 class Message(BaseModel):
@@ -182,13 +174,13 @@ class SyncLoreRequest(BaseModel):
 
 class TunnelManager:
     """Manager for Cloudflare and Ngrok tunnels."""
-    
+
     def __init__(self, tunnel_type: str = "none", local_port: int = 8000):
         self.tunnel_type = tunnel_type
         self.local_port = local_port
         self.public_url: Optional[str] = None
         self.process = None
-    
+
     def start(self) -> Optional[str]:
         """Start the tunnel and return the public URL."""
         if self.tunnel_type == "cloudflare":
@@ -198,16 +190,16 @@ class TunnelManager:
         else:
             logger.info(f"No tunnel enabled. Server running on http://localhost:{self.local_port}")
             return None
-    
+
     def _start_cloudflare(self) -> Optional[str]:
         """Start Cloudflare Quick Tunnel."""
         logger.info("Starting Cloudflare Quick Tunnel...")
-        
+
         # Download cloudflared binary if not present
         cf_path = self._get_cloudflared_path()
         if not os.path.exists(cf_path):
             self._download_cloudflared(cf_path)
-        
+
         try:
             # Start cloudflared tunnel
             self.process = subprocess.Popen(
@@ -217,14 +209,14 @@ class TunnelManager:
                 text=True,
                 bufsize=1
             )
-            
+
             # Wait for tunnel URL to appear in output
             logger.info("Waiting for Cloudflare tunnel URL...")
             time.sleep(3)
-            
+
             # Read output to extract URL
             self.public_url = self._extract_cloudflare_url()
-            
+
             if self.public_url:
                 logger.info(f"🚀 Cloudflare tunnel online: {self.public_url}")
                 return self.public_url
@@ -232,12 +224,12 @@ class TunnelManager:
                 logger.error("Failed to extract Cloudflare URL")
                 self._cleanup()
                 return None
-        
+
         except Exception as e:
             logger.error(f"Failed to start Cloudflare tunnel: {e}")
             self._cleanup()
             return None
-    
+
     def _start_ngrok(self) -> Optional[str]:
         """Start Ngrok tunnel (requires pyngrok and NGROK_TOKEN env var)."""
         try:
@@ -245,7 +237,7 @@ class TunnelManager:
         except ImportError:
             logger.error("pyngrok not installed. Install with: pip install pyngrok")
             return None
-        
+
         try:
             ngrok_token = os.getenv("NGROK_TOKEN")
             if ngrok_token:
@@ -253,28 +245,28 @@ class TunnelManager:
                 logger.info("NGROK_TOKEN loaded")
             else:
                 logger.warning("NGROK_TOKEN not found in environment")
-            
+
             logger.info("Starting Ngrok tunnel...")
             self.public_url = ngrok.connect(self.local_port).public_url
             logger.info(f"🚀 Ngrok tunnel online: {self.public_url}")
             return self.public_url
-        
+
         except Exception as e:
             logger.error(f"Failed to start Ngrok tunnel: {e}")
             return None
-    
+
     def _get_cloudflared_path(self) -> str:
         """Get path to cloudflared binary."""
         home = os.path.expanduser("~")
         cf_dir = os.path.join(home, ".cloudflared")
         os.makedirs(cf_dir, exist_ok=True)
         return os.path.join(cf_dir, "cloudflared")
-    
+
     def _download_cloudflared(self, cf_path: str):
         """Download cloudflared binary for Linux amd64."""
         logger.info("Downloading cloudflared binary...")
         url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-        
+
         try:
             result = subprocess.run(
                 ["curl", "-L", "-o", cf_path, url],
@@ -287,19 +279,19 @@ class TunnelManager:
         except Exception as e:
             logger.error(f"Failed to download cloudflared: {e}")
             raise
-    
+
     def _extract_cloudflare_url(self) -> Optional[str]:
         """Extract Cloudflare URL from process output (reads stderr and stdout)."""
         if not self.process:
             return None
-        
+
         try:
             import select
-            
+
             # cloudflared outputs the tunnel URL to stderr, not stdout
             # We need to read both stderr and stdout
             output_lines = []
-            
+
             for attempt in range(15):  # Try for ~15 seconds
                 if self.process.poll() is not None:
                     # Process ended
@@ -312,7 +304,7 @@ class TunnelManager:
                         if remaining:
                             output_lines.append(remaining)
                     break
-                
+
                 # Try to read from stderr (non-blocking)
                 try:
                     if self.process.stderr:
@@ -322,21 +314,21 @@ class TunnelManager:
                             logger.debug(f"cloudflared: {line.strip()}")
                 except Exception:
                     pass
-                
+
                 # Check accumulated output for URL
                 combined = ''.join(output_lines)
                 match = re.search(r'(https://[a-z0-9\-]+\.trycloudflare\.com)', combined)
                 if match:
                     logger.info(f"Found tunnel URL: {match.group(1)}")
                     return match.group(1)
-                
+
                 time.sleep(1)
-        
+
         except Exception as e:
             logger.error(f"Error extracting Cloudflare URL: {e}")
-        
+
         return None
-    
+
     def _cleanup(self):
         """Clean up tunnel process."""
         if self.process:
@@ -353,10 +345,10 @@ class TunnelManager:
 def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Optional[LoreManager] = None) -> FastAPI:
     """Create FastAPI app for the bridge."""
     app = FastAPI(title="LLM Bridge", version="1.0.0")
-    
+
     if lore_manager is None:
         lore_manager = LoreManager()
-    
+
     @app.get("/health")
     async def health_check():
         """Health check endpoint."""
@@ -367,7 +359,7 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
             "rag_enabled": bool(lore_manager.model),
             "lore_entries_indexed": len(lore_manager.lore_entries)
         }
-    
+
     @app.post("/sync_lore")
     async def sync_lore(request: dict):
         """Sync and index lorebook entries for semantic retrieval."""
@@ -377,10 +369,10 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
                     "status": "error",
                     "message": "Embedding model not available; RAG disabled"
                 }
-            
+
             lorebook = {"entries": request.get("entries", [])}
             success = lore_manager.embed_and_index(lorebook)
-            
+
             if success:
                 return {
                     "status": "success",
@@ -398,18 +390,18 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
                 "status": "error",
                 "message": str(e)
             }
-    
+
     @app.post("/chat")
     async def chat(request: ChatRequest):
         """Chat endpoint that streams responses, with optional server-side RAG."""
         logger.info(f"Chat request with {len(request.messages)} messages, use_rag={request.use_rag}")
-        
+
         # Prepare messages for LLM
         messages = [
             {"role": msg.role, "content": msg.content}
             for msg in request.messages
         ]
-        
+
         # Server-side RAG: retrieve lore and inject into system prompt
         if request.use_rag and lore_manager.model and len(messages) > 0:
             # Get the user's latest message for RAG query
@@ -418,27 +410,27 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
                 if msg["role"] == "user":
                     user_message = msg["content"]
                     break
-            
+
             if user_message:
                 retrieved_lore = lore_manager.retrieve_top_k(user_message, k=3)
                 if retrieved_lore:
                     lore_text = "\n\n".join(retrieved_lore)
                     logger.info(f"Retrieved {len(retrieved_lore)} lore entries via semantic search")
-                    
+
                     # Inject into system prompt
                     for i, msg in enumerate(messages):
                         if msg["role"] == "system":
                             messages[i]["content"] = f"{lore_text}\n\n{msg['content']}"
                             break
-        
+
         # This is a placeholder implementation
         # In a real scenario, this would connect to an LLM (Ollama, vLLM, etc.)
         async def generate():
             yield "This is a placeholder response from the LLM Bridge. "
             yield "In a production setup, this would connect to your actual LLM endpoint."
-        
+
         return StreamingResponse(generate(), media_type="text/plain")
-    
+
     return app
 
 
@@ -464,25 +456,25 @@ def main():
         default="0.0.0.0",
         help="Host to bind the server to"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Create tunnel manager
     tunnel_manager = TunnelManager(tunnel_type=args.tunnel, local_port=args.port)
-    
+
     # Create LoreManager for semantic RAG
     lore_manager = LoreManager()
-    
+
     # Start tunnel if enabled
     if args.tunnel != "none":
         public_url = tunnel_manager.start()
         if not public_url:
             logger.error(f"Failed to start {args.tunnel} tunnel")
             sys.exit(1)
-    
+
     # Create FastAPI app
     app = create_app(tunnel_manager, lore_manager)
-    
+
     # Run server
     logger.info(f"Starting server on {args.host}:{args.port}")
     try:
