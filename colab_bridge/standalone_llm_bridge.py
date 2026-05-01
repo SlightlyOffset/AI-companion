@@ -45,6 +45,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Silence noisy third-party libraries
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
+
+# Disable TQDM progress bars (HF downloads)
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
 
 class LoreManager:
     """Manages vector embeddings and semantic retrieval of lore entries."""
@@ -58,9 +68,9 @@ class LoreManager:
 
         if SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
-                logger.info(f"Loading embedding model: {model_name}")
+                # Still show this one as it's the main progress indicator
+                print(f"[*] Initializing Lore Engine ({model_name})...")
                 self.model = SentenceTransformer(model_name)
-                logger.info("Embedding model loaded successfully")
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
                 SENTENCE_TRANSFORMERS_AVAILABLE = False
@@ -82,7 +92,6 @@ class LoreManager:
         try:
             entries = lorebook.get("entries", [])
             if not entries:
-                logger.warning("Lorebook has no entries to index")
                 self.lore_entries = []
                 self.embeddings = np.array([])
                 return True
@@ -94,7 +103,6 @@ class LoreManager:
             ]
 
             if not self.lore_entries:
-                logger.info("No enabled lore entries to index")
                 self.embeddings = np.array([])
                 return True
 
@@ -104,9 +112,8 @@ class LoreManager:
                 for entry in self.lore_entries
             ]
 
-            logger.info(f"Embedding {len(texts_to_embed)} lore entries...")
             self.embeddings = self.model.encode(texts_to_embed, convert_to_numpy=True)
-            logger.info(f"Successfully indexed {len(self.lore_entries)} lore entries")
+            print(f"[+] Successfully indexed {len(self.lore_entries)} lore entries")
             return True
 
         except Exception as e:
@@ -188,16 +195,14 @@ class TunnelManager:
         elif self.tunnel_type == "ngrok":
             return self._start_ngrok()
         else:
-            logger.info(f"No tunnel enabled. Server running on http://localhost:{self.local_port}")
+            print(f"[*] Local mode: http://localhost:{self.local_port}")
             return None
 
     def _start_cloudflare(self) -> Optional[str]:
         """Start Cloudflare Quick Tunnel."""
-        logger.info("Starting Cloudflare Quick Tunnel...")
-
-        # Download cloudflared binary if not present
         cf_path = self._get_cloudflared_path()
         if not os.path.exists(cf_path):
+            print("[*] Downloading cloudflared...")
             self._download_cloudflared(cf_path)
 
         try:
@@ -210,15 +215,11 @@ class TunnelManager:
                 bufsize=1
             )
 
-            # Wait for tunnel URL to appear in output
-            logger.info("Waiting for Cloudflare tunnel URL...")
-            time.sleep(3)
-
             # Read output to extract URL
             self.public_url = self._extract_cloudflare_url()
 
             if self.public_url:
-                logger.info(f"🚀 Cloudflare tunnel online: {self.public_url}")
+                print(f"\n[🚀] BRIDGE ONLINE: {self.public_url}\n")
                 return self.public_url
             else:
                 logger.error("Failed to extract Cloudflare URL")
@@ -242,13 +243,9 @@ class TunnelManager:
             ngrok_token = os.getenv("NGROK_TOKEN")
             if ngrok_token:
                 ngrok.set_auth_token(ngrok_token)
-                logger.info("NGROK_TOKEN loaded")
-            else:
-                logger.warning("NGROK_TOKEN not found in environment")
 
-            logger.info("Starting Ngrok tunnel...")
             self.public_url = ngrok.connect(self.local_port).public_url
-            logger.info(f"🚀 Ngrok tunnel online: {self.public_url}")
+            print(f"\n[🚀] BRIDGE ONLINE: {self.public_url}\n")
             return self.public_url
 
         except Exception as e:
@@ -264,18 +261,14 @@ class TunnelManager:
 
     def _download_cloudflared(self, cf_path: str):
         """Download cloudflared binary for Linux amd64."""
-        logger.info("Downloading cloudflared binary...")
         url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
 
         try:
-            result = subprocess.run(
-                ["curl", "-L", "-o", cf_path, url],
-                capture_output=True,
-                text=True,
+            subprocess.run(
+                ["curl", "-L", "-s", "-o", cf_path, url],
                 check=True
             )
             os.chmod(cf_path, 0o755)
-            logger.info(f"Downloaded cloudflared to {cf_path}")
         except Exception as e:
             logger.error(f"Failed to download cloudflared: {e}")
             raise
@@ -286,23 +279,9 @@ class TunnelManager:
             return None
 
         try:
-            import select
-
-            # cloudflared outputs the tunnel URL to stderr, not stdout
-            # We need to read both stderr and stdout
             output_lines = []
-
-            for attempt in range(15):  # Try for ~15 seconds
+            for attempt in range(20):  # Wait up to 20s
                 if self.process.poll() is not None:
-                    # Process ended
-                    if self.process.stderr:
-                        remaining = self.process.stderr.read()
-                        if remaining:
-                            output_lines.append(remaining)
-                    if self.process.stdout:
-                        remaining = self.process.stdout.read()
-                        if remaining:
-                            output_lines.append(remaining)
                     break
 
                 # Try to read from stderr (non-blocking)
@@ -311,7 +290,6 @@ class TunnelManager:
                         line = self.process.stderr.readline()
                         if line:
                             output_lines.append(line)
-                            logger.debug(f"cloudflared: {line.strip()}")
                 except Exception:
                     pass
 
@@ -319,7 +297,6 @@ class TunnelManager:
                 combined = ''.join(output_lines)
                 match = re.search(r'(https://[a-z0-9\-]+\.trycloudflare\.com)', combined)
                 if match:
-                    logger.info(f"Found tunnel URL: {match.group(1)}")
                     return match.group(1)
 
                 time.sleep(1)
@@ -394,8 +371,6 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
     @app.post("/chat")
     async def chat(request: ChatRequest):
         """Chat endpoint that streams responses, with optional server-side RAG."""
-        logger.info(f"Chat request with {len(request.messages)} messages, use_rag={request.use_rag}")
-
         # Prepare messages for LLM
         messages = [
             {"role": msg.role, "content": msg.content}
@@ -415,8 +390,6 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
                 retrieved_lore = lore_manager.retrieve_top_k(user_message, k=3)
                 if retrieved_lore:
                     lore_text = "\n\n".join(retrieved_lore)
-                    logger.info(f"Retrieved {len(retrieved_lore)} lore entries via semantic search")
-
                     # Inject into system prompt
                     for i, msg in enumerate(messages):
                         if msg["role"] == "system":
@@ -476,16 +449,15 @@ def main():
     app = create_app(tunnel_manager, lore_manager)
 
     # Run server
-    logger.info(f"Starting server on {args.host}:{args.port}")
     try:
         uvicorn.run(
             app,
             host=args.host,
             port=args.port,
-            log_level="info"
+            log_level="warning"
         )
     except KeyboardInterrupt:
-        logger.info("Server stopped")
+        pass
     finally:
         if tunnel_manager:
             tunnel_manager._cleanup()
