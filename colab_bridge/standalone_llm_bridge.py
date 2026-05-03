@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import queue
 import re
 import subprocess
 import sys
@@ -212,40 +213,65 @@ class SyncLoreRequest(BaseModel):
 
 
 class LLMEngine:
-    """Transformers-backed inference engine with single-task concurrency control."""
+    """Transformers-backed inference engine with dual-worker GPU pool support."""
 
     def __init__(self, model_id: str, hf_token: Optional[str] = None):
         self.model_id = model_id
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
-        self.lock = threading.Lock()
-        self.model = None
-        self.tokenizer = None
+        self.workers: dict[int, dict] = {}
         self.error: Optional[str] = None
         self.ready = False
-        self._load_model()
+        self.multi_gpu = False
+        self._initialize_workers()
 
-    def _load_model(self):
+    def _initialize_workers(self):
         if not TRANSFORMERS_AVAILABLE:
             self.error = "transformers stack is not installed"
             logger.error("LLM engine unavailable: transformers stack is not installed")
             return
 
+        worker_targets: list[int | None]
+        if torch and torch.cuda.is_available():
+            gpu_count = torch.cuda.device_count()
+            worker_targets = [0, 1] if gpu_count > 1 else [0]
+            self.multi_gpu = gpu_count > 1
+            mode_label = "Dual-Worker Pool" if self.multi_gpu else "Single-Worker GPU"
+            print(f"[*] Initializing {mode_label} for model: {self.model_id}")
+        else:
+            worker_targets = [None]
+            self.multi_gpu = False
+            print(f"[*] Initializing CPU fallback worker for model: {self.model_id}")
+
+        for worker_id, device_id in enumerate(worker_targets):
+            worker = self._load_worker(worker_id, device_id)
+            if worker:
+                self.workers[worker_id] = worker
+
+        self.ready = bool(self.workers)
+        if not self.ready:
+            self.error = self.error or f"Failed to load any worker for model '{self.model_id}'"
+            logger.error(self.error)
+        else:
+            print(f"[+] LLM worker pool ready with {len(self.workers)} worker(s)")
+
+    def _load_worker(self, worker_id: int, device_id: int | None) -> Optional[dict]:
         try:
-            print(f"[*] Loading LLM model: {self.model_id}")
+            device_label = f"cuda:{device_id}" if device_id is not None else "cpu"
+            print(f"[*] Loading worker {worker_id} on {device_label}...")
 
             tokenizer_kwargs = {"trust_remote_code": True}
             if self.hf_token:
                 tokenizer_kwargs["token"] = self.hf_token
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
-            if self.tokenizer.pad_token_id is None and self.tokenizer.eos_token_id is not None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
+            tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
+            if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
+                tokenizer.pad_token = tokenizer.eos_token
 
             model_kwargs = {"trust_remote_code": True}
             if self.hf_token:
                 model_kwargs["token"] = self.hf_token
 
-            if torch.cuda.is_available():
-                model_kwargs["device_map"] = "auto"
+            if device_id is not None:
+                model_kwargs["device_map"] = f"cuda:{device_id}"
                 model_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_use_double_quant=True,
@@ -256,25 +282,30 @@ class LLMEngine:
                 model_kwargs["device_map"] = "cpu"
                 model_kwargs["torch_dtype"] = torch.float32
 
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
-            self.model.eval()
-            self.ready = True
-            print("[+] LLM model loaded successfully")
+            model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
+            model.eval()
+            return {
+                "worker_id": worker_id,
+                "device_id": device_id,
+                "model": model,
+                "tokenizer": tokenizer,
+                "lock": threading.Lock(),
+            }
         except Exception as exc:
             self.error = str(exc)
-            logger.error(f"Failed to load LLM model '{self.model_id}': {exc}")
-            self.ready = False
+            logger.error(f"Failed to load worker {worker_id}: {exc}")
+            return None
 
-    def _build_inputs(self, messages: list[dict]):
-        if not self.tokenizer:
-            raise RuntimeError("Tokenizer is not initialized")
-        if self.tokenizer.chat_template:
-            return self.tokenizer.apply_chat_template(
+    def _build_inputs(self, worker: dict, messages: list[dict]):
+        tokenizer = worker["tokenizer"]
+        model = worker["model"]
+        if tokenizer.chat_template:
+            return tokenizer.apply_chat_template(
                 messages,
                 add_generation_prompt=True,
                 return_tensors="pt",
                 return_dict=True,
-            ).to(self.model.device)
+            ).to(model.device)
 
         prompt_lines = []
         for message in messages:
@@ -283,20 +314,52 @@ class LLMEngine:
             prompt_lines.append(f"{role.upper()}: {content}")
         prompt_lines.append("ASSISTANT:")
         prompt = "\n".join(prompt_lines)
-        return self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        return tokenizer(prompt, return_tensors="pt").to(model.device)
 
-    def _generation_kwargs(self, max_tokens: int, temperature: float) -> dict:
+    def _generation_kwargs(self, tokenizer, max_tokens: int, temperature: float) -> dict:
         use_sampling = temperature > 0
         return {
             "max_new_tokens": max_tokens,
             "temperature": temperature if use_sampling else 1.0,
             "do_sample": use_sampling,
-            "pad_token_id": self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
+            "pad_token_id": tokenizer.pad_token_id or tokenizer.eos_token_id,
             "use_cache": True,
         }
 
     def _fallback_candidates(self, n: int) -> list[str]:
         return [FALLBACK_UNAVAILABLE_MESSAGE for _ in range(max(1, n))]
+
+    def _worker_generate_once(
+        self,
+        worker: dict,
+        messages: list[dict],
+        max_tokens: int,
+        temperature: float,
+    ) -> str:
+        model = worker["model"]
+        tokenizer = worker["tokenizer"]
+        with worker["lock"]:
+            inputs = self._build_inputs(worker, messages)
+            kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
+            output_tokens = model.generate(
+                **inputs,
+                **kwargs,
+                num_return_sequences=1,
+            )
+            input_len = inputs.input_ids.shape[1]
+            result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
+            if torch and worker["device_id"] is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            return result
+
+    def _pick_stream_worker(self) -> dict:
+        ordered_ids = sorted(self.workers.keys())
+        if len(ordered_ids) > 1:
+            primary = self.workers[ordered_ids[0]]
+            secondary = self.workers[ordered_ids[1]]
+            if primary["lock"].locked() and not secondary["lock"].locked():
+                return secondary
+        return self.workers[ordered_ids[0]]
 
     def generate_batch(
         self,
@@ -308,30 +371,49 @@ class LLMEngine:
         if not self.ready:
             return self._fallback_candidates(n)
 
-        with self.lock:
-            try:
-                inputs = self._build_inputs(messages)
-                kwargs = self._generation_kwargs(max_tokens=max_tokens, temperature=temperature)
-                output_tokens = self.model.generate(
-                    **inputs,
-                    **kwargs,
-                    num_return_sequences=max(1, n),
-                )
-                input_len = inputs.input_ids.shape[1]
-                candidates = []
-                for tokens in output_tokens:
-                    text = self.tokenizer.decode(tokens[input_len:], skip_special_tokens=True).strip()
-                    if text:
-                        candidates.append(text)
-                return candidates or self._fallback_candidates(n)
-            except Exception as exc:
-                if _is_oom_or_gpu_error(exc):
-                    logger.error(f"GPU generation error (batch): {exc}")
-                    if torch and torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    return self._fallback_candidates(n)
-                logger.error(f"Batch generation failed: {exc}")
-                return self._fallback_candidates(n)
+        task_total = max(1, n)
+        results: list[str] = [""] * task_total
+        task_queue: queue.Queue[int] = queue.Queue()
+        for idx in range(task_total):
+            task_queue.put(idx)
+
+        def pool_manager(worker: dict):
+            while True:
+                try:
+                    task_idx = task_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+                try:
+                    candidate = self._worker_generate_once(
+                        worker,
+                        messages=messages,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+                    results[task_idx] = candidate or FALLBACK_UNAVAILABLE_MESSAGE
+                except Exception as exc:
+                    if _is_oom_or_gpu_error(exc):
+                        logger.error(f"GPU generation error (worker {worker['worker_id']}): {exc}")
+                        if torch and worker["device_id"] is not None and torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        results[task_idx] = FALLBACK_UNAVAILABLE_MESSAGE
+                    else:
+                        logger.error(f"Batch generation failed on worker {worker['worker_id']}: {exc}")
+                        results[task_idx] = FALLBACK_UNAVAILABLE_MESSAGE
+                finally:
+                    task_queue.task_done()
+
+        threads = []
+        for worker_id in sorted(self.workers.keys()):
+            thread = threading.Thread(target=pool_manager, args=(self.workers[worker_id],), daemon=True)
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+
+        return [candidate if candidate else FALLBACK_UNAVAILABLE_MESSAGE for candidate in results]
 
     def generate_stream(
         self,
@@ -343,15 +425,19 @@ class LLMEngine:
             yield FALLBACK_UNAVAILABLE_MESSAGE
             return
 
-        with self.lock:
+        worker = self._pick_stream_worker()
+        model = worker["model"]
+        tokenizer = worker["tokenizer"]
+        worker_id = worker["worker_id"]
+        with worker["lock"]:
             try:
-                inputs = self._build_inputs(messages)
+                inputs = self._build_inputs(worker, messages)
                 streamer = TextIteratorStreamer(
-                    self.tokenizer,
+                    tokenizer,
                     skip_prompt=True,
                     skip_special_tokens=True,
                 )
-                kwargs = self._generation_kwargs(max_tokens=max_tokens, temperature=temperature)
+                kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
                 generation_kwargs = {
                     **inputs,
                     **kwargs,
@@ -359,7 +445,7 @@ class LLMEngine:
                 }
 
                 generation_thread = threading.Thread(
-                    target=self.model.generate,
+                    target=model.generate,
                     kwargs=generation_kwargs,
                     daemon=True,
                 )
@@ -370,14 +456,16 @@ class LLMEngine:
                         yield chunk
 
                 generation_thread.join(timeout=0.1)
+                if torch and worker["device_id"] is not None and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             except Exception as exc:
                 if _is_oom_or_gpu_error(exc):
-                    logger.error(f"GPU generation error (stream): {exc}")
-                    if torch and torch.cuda.is_available():
+                    logger.error(f"GPU generation error (stream worker {worker_id}): {exc}")
+                    if torch and worker["device_id"] is not None and torch.cuda.is_available():
                         torch.cuda.empty_cache()
                     yield FALLBACK_UNAVAILABLE_MESSAGE
                     return
-                logger.error(f"Streaming generation failed: {exc}")
+                logger.error(f"Streaming generation failed on worker {worker_id}: {exc}")
                 yield FALLBACK_UNAVAILABLE_MESSAGE
 
 
@@ -575,6 +663,8 @@ def create_app(
             "lore_entries_indexed": len(lore_manager.lore_entries),
             "llm_ready": bool(llm_engine and llm_engine.ready),
             "llm_model": llm_engine.model_id if llm_engine else None,
+            "llm_workers": len(llm_engine.workers) if llm_engine else 0,
+            "llm_multi_gpu": bool(llm_engine and llm_engine.multi_gpu),
         }
 
     @app.post("/sync_lore")
