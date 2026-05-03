@@ -32,6 +32,9 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+# Reduce CUDA allocator fragmentation unless caller already set a policy.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMERS_AVAILABLE = True
@@ -75,6 +78,8 @@ logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 FALLBACK_UNAVAILABLE_MESSAGE = "System busy/unavailable. Please retry in a moment."
+DEFAULT_GPU_MAX_MEMORY_GIB = int(os.getenv("LLM_WORKER_GPU_MAX_GIB", "13"))
+DEFAULT_CPU_MAX_MEMORY_GIB = int(os.getenv("LLM_WORKER_CPU_MAX_GIB", "24"))
 
 
 def _is_oom_or_gpu_error(exc: Exception) -> bool:
@@ -282,7 +287,31 @@ class LLMEngine:
                 model_kwargs["device_map"] = "cpu"
                 model_kwargs["torch_dtype"] = torch.float32
 
-            model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
+            try:
+                model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
+            except Exception as exc:
+                if device_id is None or not _is_oom_or_gpu_error(exc):
+                    raise
+
+                logger.warning(
+                    f"Worker {worker_id} hit OOM on {device_label}; retrying with CPU offload headroom."
+                )
+                if torch and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+                offload_dir = Path(".hf_offload") / f"worker_{worker_id}"
+                offload_dir.mkdir(parents=True, exist_ok=True)
+
+                retry_kwargs = dict(model_kwargs)
+                retry_kwargs["device_map"] = "auto"
+                retry_kwargs["max_memory"] = {
+                    device_id: f"{DEFAULT_GPU_MAX_MEMORY_GIB}GiB",
+                    "cpu": f"{DEFAULT_CPU_MAX_MEMORY_GIB}GiB",
+                }
+                retry_kwargs["offload_folder"] = str(offload_dir)
+                retry_kwargs["offload_state_dict"] = True
+                model = AutoModelForCausalLM.from_pretrained(self.model_id, **retry_kwargs)
+
             model.eval()
             return {
                 "worker_id": worker_id,
