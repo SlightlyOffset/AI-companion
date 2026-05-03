@@ -303,15 +303,19 @@ class LLMEngine:
 
                 # Tighter packing: force strict device map and maximize GPU usage (14GiB)
                 retry_kwargs = dict(model_kwargs)
-                retry_kwargs["device_map"] = {f"cuda:{device_id}": "14GiB"}
+                # Correct device_map syntax: {"": device_id} pins the whole model
+                retry_kwargs["device_map"] = {"": device_id}
+                retry_kwargs["max_memory"] = {device_id: "14GiB", "cpu": f"{DEFAULT_CPU_MAX_MEMORY_GIB}GiB"}
                 model = AutoModelForCausalLM.from_pretrained(self.model_id, **retry_kwargs)
 
             model.eval()
             if torch and device_id is not None and torch.cuda.is_available():
+                torch.cuda.set_device(device_id)
                 torch.cuda.empty_cache()
             return {
                 "worker_id": worker_id,
                 "device_id": device_id,
+                "device_label": device_label,
                 "model": model,
                 "tokenizer": tokenizer,
                 "lock": threading.Lock(),
@@ -323,14 +327,14 @@ class LLMEngine:
 
     def _build_inputs(self, worker: dict, messages: list[dict]):
         tokenizer = worker["tokenizer"]
-        model = worker["model"]
+        device_label = worker["device_label"]
         if tokenizer.chat_template:
             return tokenizer.apply_chat_template(
                 messages,
                 add_generation_prompt=True,
                 return_tensors="pt",
                 return_dict=True,
-            ).to(model.device)
+            ).to(device_label)
 
         prompt_lines = []
         for message in messages:
@@ -339,7 +343,7 @@ class LLMEngine:
             prompt_lines.append(f"{role.upper()}: {content}")
         prompt_lines.append("ASSISTANT:")
         prompt = "\n".join(prompt_lines)
-        return tokenizer(prompt, return_tensors="pt").to(model.device)
+        return tokenizer(prompt, return_tensors="pt").to(device_label)
 
     def _generation_kwargs(self, tokenizer, max_tokens: int, temperature: float) -> dict:
         use_sampling = temperature > 0
@@ -363,8 +367,12 @@ class LLMEngine:
     ) -> str:
         model = worker["model"]
         tokenizer = worker["tokenizer"]
+        device_id = worker["device_id"]
         with worker["lock"]:
             try:
+                if torch and device_id is not None and torch.cuda.is_available():
+                    torch.cuda.set_device(device_id)
+                
                 inputs = self._build_inputs(worker, messages)
                 kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
                 with torch.no_grad():
@@ -377,7 +385,7 @@ class LLMEngine:
                 result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
                 return result
             finally:
-                if torch and worker["device_id"] is not None and torch.cuda.is_available():
+                if torch and device_id is not None and torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
     def _pick_stream_worker(self) -> dict:
@@ -406,6 +414,10 @@ class LLMEngine:
             task_queue.put(idx)
 
         def pool_manager(worker: dict):
+            device_id = worker["device_id"]
+            if torch and device_id is not None and torch.cuda.is_available():
+                torch.cuda.set_device(device_id)
+
             while True:
                 try:
                     task_idx = task_queue.get_nowait()
@@ -423,7 +435,7 @@ class LLMEngine:
                 except Exception as exc:
                     if _is_oom_or_gpu_error(exc):
                         logger.error(f"GPU generation error (worker {worker['worker_id']}): {exc}")
-                        if torch and worker["device_id"] is not None and torch.cuda.is_available():
+                        if torch and device_id is not None and torch.cuda.is_available():
                             torch.cuda.empty_cache()
                         results[task_idx] = FALLBACK_UNAVAILABLE_MESSAGE
                     else:
@@ -457,8 +469,13 @@ class LLMEngine:
         model = worker["model"]
         tokenizer = worker["tokenizer"]
         worker_id = worker["worker_id"]
+        device_id = worker["device_id"]
+        
         with worker["lock"]:
             try:
+                if torch and device_id is not None and torch.cuda.is_available():
+                    torch.cuda.set_device(device_id)
+
                 inputs = self._build_inputs(worker, messages)
                 streamer = TextIteratorStreamer(
                     tokenizer,
@@ -472,9 +489,13 @@ class LLMEngine:
                     "streamer": streamer,
                 }
 
+                def threaded_generate():
+                    if torch and device_id is not None and torch.cuda.is_available():
+                        torch.cuda.set_device(device_id)
+                    model.generate(**generation_kwargs)
+
                 generation_thread = threading.Thread(
-                    target=model.generate,
-                    kwargs=generation_kwargs,
+                    target=threaded_generate,
                     daemon=True,
                 )
                 generation_thread.start()
