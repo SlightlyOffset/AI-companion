@@ -303,16 +303,18 @@ class LLMEngine:
                 offload_dir.mkdir(parents=True, exist_ok=True)
 
                 retry_kwargs = dict(model_kwargs)
-                retry_kwargs["device_map"] = "auto"
-                retry_kwargs["max_memory"] = {
-                    device_id: f"{DEFAULT_GPU_MAX_MEMORY_GIB}GiB",
-                    "cpu": f"{DEFAULT_CPU_MAX_MEMORY_GIB}GiB",
-                }
+                # On T4 (15-16GB), we must leave significant headroom for context.
+                # 11GiB for weights leaves ~4GiB for kv-cache/activations.
+                gpu_limit = min(DEFAULT_GPU_MAX_MEMORY_GIB, 11)
+                retry_kwargs["device_map"] = {f"cuda:{device_id}": f"{gpu_limit}GiB", "cpu": f"{DEFAULT_CPU_MAX_MEMORY_GIB}GiB"}
+                retry_kwargs.pop("max_memory", None)
                 retry_kwargs["offload_folder"] = str(offload_dir)
                 retry_kwargs["offload_state_dict"] = True
                 model = AutoModelForCausalLM.from_pretrained(self.model_id, **retry_kwargs)
 
             model.eval()
+            if torch and device_id is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
             return {
                 "worker_id": worker_id,
                 "device_id": device_id,
@@ -368,18 +370,21 @@ class LLMEngine:
         model = worker["model"]
         tokenizer = worker["tokenizer"]
         with worker["lock"]:
-            inputs = self._build_inputs(worker, messages)
-            kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
-            output_tokens = model.generate(
-                **inputs,
-                **kwargs,
-                num_return_sequences=1,
-            )
-            input_len = inputs.input_ids.shape[1]
-            result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
-            if torch and worker["device_id"] is not None and torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            return result
+            try:
+                inputs = self._build_inputs(worker, messages)
+                kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
+                with torch.no_grad():
+                    output_tokens = model.generate(
+                        **inputs,
+                        **kwargs,
+                        num_return_sequences=1,
+                    )
+                input_len = inputs.input_ids.shape[1]
+                result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
+                return result
+            finally:
+                if torch and worker["device_id"] is not None and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
 
     def _pick_stream_worker(self) -> dict:
         ordered_ids = sorted(self.workers.keys())
