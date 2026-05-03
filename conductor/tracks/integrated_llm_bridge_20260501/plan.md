@@ -24,6 +24,6 @@
     - [x] Add try-except blocks around generation to return a "System busy/unavailable" message on OOM.
 - [x] **Task: Local End-to-End Test**
     - [x] Mock GPU and verify streaming/batch JSON formats.
-- [ ] **Task: Remote Validation (Kaggle)**
-    - [ ] Run on Kaggle T4 and verify connection from `t.ai`.
-- [ ] **Task: Conductor - User Manual Verification 'Integrated Transformers LLM Bridge' (Protocol in workflow.md)**
+- [x] **Task: Remote Validation (Kaggle)**
+    - [x] Run on Kaggle T4 and verify connection from `t.ai`.
+- [x] **Task: Conductor - User Manual Verification 'Integrated Transformers LLM Bridge' (Protocol in workflow.md)**

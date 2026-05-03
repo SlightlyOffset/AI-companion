@@ -1,0 +1,8 @@
+{
+  "track_id": "dual_worker_pool_standalone_20260503",
+  "type": "feature",
+  "status": "planned",
+  "created_at": "2026-05-03T16:00:00Z",
+  "updated_at": "2026-05-03T16:00:00Z",
+  "description": "Implement independent dual-worker GPU pool in standalone_llm_bridge.py"
+}

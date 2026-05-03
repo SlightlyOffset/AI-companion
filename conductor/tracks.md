@@ -77,5 +77,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Integrated Transformers LLM Bridge (GPU Offloading)**
+- [x] **Track: Integrated Transformers LLM Bridge (GPU Offloading)**
 *Link: [./tracks/integrated_llm_bridge_20260501/](./tracks/integrated_llm_bridge_20260501/)*
+
+---
+
+- [ ] **Track: Standalone Dual-Worker GPU Pool**
+*Link: [./tracks/dual_worker_pool_standalone_20260503/](./tracks/dual_worker_pool_standalone_20260503/)*
