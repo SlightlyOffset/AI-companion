@@ -63,6 +63,10 @@ TODO.md
 # GitHub App credentials
 gha-creds-*.json
 
+# Kaggle API credentials
+.kaggle/
+remote_notebooks/
+
 # Test coverage reports
 .coverage
 
