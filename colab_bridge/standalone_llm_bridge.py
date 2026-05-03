@@ -20,13 +20,14 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -36,6 +37,23 @@ try:
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
+
+try:
+    import torch
+    from transformers import (
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        BitsAndBytesConfig,
+        TextIteratorStreamer,
+    )
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    torch = None
+    AutoModelForCausalLM = None
+    AutoTokenizer = None
+    BitsAndBytesConfig = None
+    TextIteratorStreamer = None
 
 
 # Setup logging
@@ -54,6 +72,20 @@ logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
 
 # Disable TQDM progress bars (HF downloads)
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
+FALLBACK_UNAVAILABLE_MESSAGE = "System busy/unavailable. Please retry in a moment."
+
+
+def _is_oom_or_gpu_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    gpu_markers = (
+        "out of memory",
+        "cuda error",
+        "cublas",
+        "cudnn",
+        "device-side assert",
+    )
+    return any(marker in message for marker in gpu_markers)
 
 
 class LoreManager:
@@ -170,12 +202,183 @@ class ChatRequest(BaseModel):
     messages: list[Message]
     max_tokens: int = 1024
     temperature: float = 0.8
+    n: int = 1
     model: str = "default"
     use_rag: bool = False
 
 
 class SyncLoreRequest(BaseModel):
     entries: list = []
+
+
+class LLMEngine:
+    """Transformers-backed inference engine with single-task concurrency control."""
+
+    def __init__(self, model_id: str, hf_token: Optional[str] = None):
+        self.model_id = model_id
+        self.hf_token = hf_token or os.getenv("HF_TOKEN")
+        self.lock = threading.Lock()
+        self.model = None
+        self.tokenizer = None
+        self.error: Optional[str] = None
+        self.ready = False
+        self._load_model()
+
+    def _load_model(self):
+        if not TRANSFORMERS_AVAILABLE:
+            self.error = "transformers stack is not installed"
+            logger.error("LLM engine unavailable: transformers stack is not installed")
+            return
+
+        try:
+            print(f"[*] Loading LLM model: {self.model_id}")
+
+            tokenizer_kwargs = {"trust_remote_code": True}
+            if self.hf_token:
+                tokenizer_kwargs["token"] = self.hf_token
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
+            if self.tokenizer.pad_token_id is None and self.tokenizer.eos_token_id is not None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+
+            model_kwargs = {"trust_remote_code": True}
+            if self.hf_token:
+                model_kwargs["token"] = self.hf_token
+
+            if torch.cuda.is_available():
+                model_kwargs["device_map"] = "auto"
+                model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.float16,
+                )
+            else:
+                model_kwargs["device_map"] = "cpu"
+                model_kwargs["torch_dtype"] = torch.float32
+
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
+            self.model.eval()
+            self.ready = True
+            print("[+] LLM model loaded successfully")
+        except Exception as exc:
+            self.error = str(exc)
+            logger.error(f"Failed to load LLM model '{self.model_id}': {exc}")
+            self.ready = False
+
+    def _build_inputs(self, messages: list[dict]):
+        if not self.tokenizer:
+            raise RuntimeError("Tokenizer is not initialized")
+        if self.tokenizer.chat_template:
+            return self.tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                return_tensors="pt",
+                return_dict=True,
+            ).to(self.model.device)
+
+        prompt_lines = []
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            prompt_lines.append(f"{role.upper()}: {content}")
+        prompt_lines.append("ASSISTANT:")
+        prompt = "\n".join(prompt_lines)
+        return self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+
+    def _generation_kwargs(self, max_tokens: int, temperature: float) -> dict:
+        use_sampling = temperature > 0
+        return {
+            "max_new_tokens": max_tokens,
+            "temperature": temperature if use_sampling else 1.0,
+            "do_sample": use_sampling,
+            "pad_token_id": self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
+            "use_cache": True,
+        }
+
+    def _fallback_candidates(self, n: int) -> list[str]:
+        return [FALLBACK_UNAVAILABLE_MESSAGE for _ in range(max(1, n))]
+
+    def generate_batch(
+        self,
+        messages: list[dict],
+        max_tokens: int = 1024,
+        temperature: float = 0.8,
+        n: int = 1,
+    ) -> list[str]:
+        if not self.ready:
+            return self._fallback_candidates(n)
+
+        with self.lock:
+            try:
+                inputs = self._build_inputs(messages)
+                kwargs = self._generation_kwargs(max_tokens=max_tokens, temperature=temperature)
+                output_tokens = self.model.generate(
+                    **inputs,
+                    **kwargs,
+                    num_return_sequences=max(1, n),
+                )
+                input_len = inputs.input_ids.shape[1]
+                candidates = []
+                for tokens in output_tokens:
+                    text = self.tokenizer.decode(tokens[input_len:], skip_special_tokens=True).strip()
+                    if text:
+                        candidates.append(text)
+                return candidates or self._fallback_candidates(n)
+            except Exception as exc:
+                if _is_oom_or_gpu_error(exc):
+                    logger.error(f"GPU generation error (batch): {exc}")
+                    if torch and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    return self._fallback_candidates(n)
+                logger.error(f"Batch generation failed: {exc}")
+                return self._fallback_candidates(n)
+
+    def generate_stream(
+        self,
+        messages: list[dict],
+        max_tokens: int = 1024,
+        temperature: float = 0.8,
+    ):
+        if not self.ready:
+            yield FALLBACK_UNAVAILABLE_MESSAGE
+            return
+
+        with self.lock:
+            try:
+                inputs = self._build_inputs(messages)
+                streamer = TextIteratorStreamer(
+                    self.tokenizer,
+                    skip_prompt=True,
+                    skip_special_tokens=True,
+                )
+                kwargs = self._generation_kwargs(max_tokens=max_tokens, temperature=temperature)
+                generation_kwargs = {
+                    **inputs,
+                    **kwargs,
+                    "streamer": streamer,
+                }
+
+                generation_thread = threading.Thread(
+                    target=self.model.generate,
+                    kwargs=generation_kwargs,
+                    daemon=True,
+                )
+                generation_thread.start()
+
+                for chunk in streamer:
+                    if chunk:
+                        yield chunk
+
+                generation_thread.join(timeout=0.1)
+            except Exception as exc:
+                if _is_oom_or_gpu_error(exc):
+                    logger.error(f"GPU generation error (stream): {exc}")
+                    if torch and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    yield FALLBACK_UNAVAILABLE_MESSAGE
+                    return
+                logger.error(f"Streaming generation failed: {exc}")
+                yield FALLBACK_UNAVAILABLE_MESSAGE
 
 
 
@@ -319,7 +522,42 @@ class TunnelManager:
                     pass
 
 
-def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Optional[LoreManager] = None) -> FastAPI:
+def _inject_rag_into_messages(messages: list[dict], lore_manager: LoreManager) -> list[dict]:
+    """Retrieve relevant lore and prepend it to the system context."""
+    if not lore_manager.model or not messages:
+        return messages
+
+    user_message = None
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            user_message = msg.get("content")
+            break
+
+    if not user_message:
+        return messages
+
+    retrieved_lore = lore_manager.retrieve_top_k(user_message, k=3)
+    if not retrieved_lore:
+        return messages
+
+    lore_text = "\n\n".join(retrieved_lore)
+    updated_messages = list(messages)
+    for i, msg in enumerate(updated_messages):
+        if msg.get("role") == "system":
+            updated_messages[i] = {
+                "role": "system",
+                "content": f"{lore_text}\n\n{msg.get('content', '')}",
+            }
+            return updated_messages
+
+    return [{"role": "system", "content": lore_text}, *updated_messages]
+
+
+def create_app(
+    tunnel_manager: Optional[TunnelManager] = None,
+    lore_manager: Optional[LoreManager] = None,
+    llm_engine: Optional[LLMEngine] = None,
+) -> FastAPI:
     """Create FastAPI app for the bridge."""
     app = FastAPI(title="LLM Bridge", version="1.0.0")
 
@@ -334,7 +572,9 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
             "tunnel_type": tunnel_manager.tunnel_type if tunnel_manager else "none",
             "public_url": tunnel_manager.public_url if tunnel_manager else None,
             "rag_enabled": bool(lore_manager.model),
-            "lore_entries_indexed": len(lore_manager.lore_entries)
+            "lore_entries_indexed": len(lore_manager.lore_entries),
+            "llm_ready": bool(llm_engine and llm_engine.ready),
+            "llm_model": llm_engine.model_id if llm_engine else None,
         }
 
     @app.post("/sync_lore")
@@ -378,31 +618,29 @@ def create_app(tunnel_manager: Optional[TunnelManager] = None, lore_manager: Opt
         ]
 
         # Server-side RAG: retrieve lore and inject into system prompt
-        if request.use_rag and lore_manager.model and len(messages) > 0:
-            # Get the user's latest message for RAG query
-            user_message = None
-            for msg in reversed(messages):
-                if msg["role"] == "user":
-                    user_message = msg["content"]
-                    break
+        if request.use_rag:
+            messages = _inject_rag_into_messages(messages, lore_manager)
 
-            if user_message:
-                retrieved_lore = lore_manager.retrieve_top_k(user_message, k=3)
-                if retrieved_lore:
-                    lore_text = "\n\n".join(retrieved_lore)
-                    # Inject into system prompt
-                    for i, msg in enumerate(messages):
-                        if msg["role"] == "system":
-                            messages[i]["content"] = f"{lore_text}\n\n{msg['content']}"
-                            break
+        if not llm_engine:
+            if request.n > 1:
+                return {"candidates": [FALLBACK_UNAVAILABLE_MESSAGE for _ in range(max(1, request.n))]}
+            return StreamingResponse(iter([FALLBACK_UNAVAILABLE_MESSAGE]), media_type="text/plain")
 
-        # This is a placeholder implementation
-        # In a real scenario, this would connect to an LLM (Ollama, vLLM, etc.)
-        async def generate():
-            yield "This is a placeholder response from the LLM Bridge. "
-            yield "In a production setup, this would connect to your actual LLM endpoint."
+        if request.n > 1:
+            candidates = llm_engine.generate_batch(
+                messages=messages,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                n=request.n,
+            )
+            return {"candidates": candidates}
 
-        return StreamingResponse(generate(), media_type="text/plain")
+        stream = llm_engine.generate_stream(
+            messages=messages,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
+        return StreamingResponse(stream, media_type="text/plain")
 
     return app
 
@@ -429,6 +667,16 @@ def main():
         default="0.0.0.0",
         help="Host to bind the server to"
     )
+    parser.add_argument(
+        "--model",
+        default="Sao10K/L3-8B-Stheno-v3.2",
+        help="HuggingFace model ID for CausalLM generation"
+    )
+    parser.add_argument(
+        "--hf_token",
+        default=None,
+        help="HuggingFace token (or use HF_TOKEN env var)"
+    )
 
     args = parser.parse_args()
 
@@ -437,6 +685,7 @@ def main():
 
     # Create LoreManager for semantic RAG
     lore_manager = LoreManager()
+    llm_engine = LLMEngine(model_id=args.model, hf_token=args.hf_token)
 
     # Start tunnel if enabled
     if args.tunnel != "none":
@@ -446,7 +695,7 @@ def main():
             sys.exit(1)
 
     # Create FastAPI app
-    app = create_app(tunnel_manager, lore_manager)
+    app = create_app(tunnel_manager, lore_manager, llm_engine)
 
     # Run server
     try:
