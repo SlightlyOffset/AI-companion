@@ -593,7 +593,7 @@ class TaiMenu(App):
             lore_file = self.character_profile.get("lorebook_path") or "lorebooks/default.json"
             lorebook_data = load_lorebook(lore_file)
             if lorebook_data.get("entries"):
-                self.run_in_worker(self._sync_lore_worker, remote_url, lorebook_data)
+                self._sync_lore_worker(remote_url, lorebook_data)
 
 
         # Print character's starter messages and save to memory (if any, which should always be any)
