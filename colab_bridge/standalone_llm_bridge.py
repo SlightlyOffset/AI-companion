@@ -102,8 +102,8 @@ class LoreManager:
         if SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
                 # Still show this one as it's the main progress indicator
-                print(f"[*] Initializing Lore Engine ({model_name})...")
-                self.model = SentenceTransformer(model_name)
+                print(f"[*] Initializing Lore Engine on CPU ({model_name})...")
+                self.model = SentenceTransformer(model_name, device="cpu")
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
                 SENTENCE_TRANSFORMERS_AVAILABLE = False
