@@ -277,6 +277,8 @@ class LLMEngine:
 
             if device_id is not None:
                 model_kwargs["device_map"] = f"cuda:{device_id}"
+                model_kwargs["torch_dtype"] = torch.float16
+                model_kwargs["low_cpu_mem_usage"] = True
                 model_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_use_double_quant=True,
@@ -294,22 +296,14 @@ class LLMEngine:
                     raise
 
                 logger.warning(
-                    f"Worker {worker_id} hit OOM on {device_label}; retrying with CPU offload headroom."
+                    f"Worker {worker_id} hit OOM on {device_label}. Retrying with strict VRAM packing..."
                 )
                 if torch and torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-                offload_dir = Path(".hf_offload") / f"worker_{worker_id}"
-                offload_dir.mkdir(parents=True, exist_ok=True)
-
+                # Tighter packing: force strict device map and maximize GPU usage (14GiB)
                 retry_kwargs = dict(model_kwargs)
-                # On T4 (15-16GB), we must leave significant headroom for context.
-                # 11GiB for weights leaves ~4GiB for kv-cache/activations.
-                gpu_limit = min(DEFAULT_GPU_MAX_MEMORY_GIB, 11)
-                retry_kwargs["device_map"] = {f"cuda:{device_id}": f"{gpu_limit}GiB", "cpu": f"{DEFAULT_CPU_MAX_MEMORY_GIB}GiB"}
-                retry_kwargs.pop("max_memory", None)
-                retry_kwargs["offload_folder"] = str(offload_dir)
-                retry_kwargs["offload_state_dict"] = True
+                retry_kwargs["device_map"] = {f"cuda:{device_id}": "14GiB"}
                 model = AutoModelForCausalLM.from_pretrained(self.model_id, **retry_kwargs)
 
             model.eval()
