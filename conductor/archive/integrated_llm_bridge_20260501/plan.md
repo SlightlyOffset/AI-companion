@@ -27,3 +27,4 @@
 - [x] **Task: Remote Validation (Kaggle)**
     - [x] Run on Kaggle T4 and verify connection from `t.ai`.
 - [x] **Task: Conductor - User Manual Verification 'Integrated Transformers LLM Bridge' (Protocol in workflow.md)**
+

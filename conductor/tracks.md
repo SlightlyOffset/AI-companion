@@ -55,7 +55,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: Remote Semantic RAG (Colab/Kaggle Offloading)**
-*Link: [./tracks/remote_semantic_rag_20260427/](./tracks/remote_semantic_rag_20260427/)*
+*Link: [./archive/remote_semantic_rag_20260427/](./archive/remote_semantic_rag_20260427/)*
 
 ---
 
@@ -67,7 +67,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: Cloudflare Bridge Tunneling**
-*Link: [./tracks/cloudflare_bridge_tunnel_20260427/](./tracks/cloudflare_bridge_tunnel_20260427/)*
+*Link: [./archive/cloudflare_bridge_tunnel_20260427/](./archive/cloudflare_bridge_tunnel_20260427/)*
 
 
 ---
@@ -78,9 +78,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: Integrated Transformers LLM Bridge (GPU Offloading)**
-*Link: [./tracks/integrated_llm_bridge_20260501/](./tracks/integrated_llm_bridge_20260501/)*
+*Link: [./archive/integrated_llm_bridge_20260501/](./archive/integrated_llm_bridge_20260501/)*
 
 ---
 
-- [ ] **Track: Standalone Dual-Worker GPU Pool**
-*Link: [./tracks/dual_worker_pool_standalone_20260503/](./tracks/dual_worker_pool_standalone_20260503/)*
+- [x] **Track: Standalone Dual-Worker GPU Pool**
+*Link: [./archive/dual_worker_pool_standalone_20260503/](./archive/dual_worker_pool_standalone_20260503/)*
+
