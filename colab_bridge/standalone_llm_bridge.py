@@ -277,7 +277,7 @@ class LLMEngine:
 
             if device_id is not None:
                 model_kwargs["device_map"] = f"cuda:{device_id}"
-                model_kwargs["torch_dtype"] = torch.float16
+                model_kwargs["torch_dtype"] = torch.float32
                 model_kwargs["low_cpu_mem_usage"] = True
                 model_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
@@ -351,7 +351,7 @@ class LLMEngine:
             "max_new_tokens": max_tokens,
             "temperature": temperature if use_sampling else 1.0,
             "do_sample": use_sampling,
-            "pad_token_id": tokenizer.pad_token_id or tokenizer.eos_token_id,
+            "pad_token_id": tokenizer.pad_token_id or (tokenizer.eos_token_id[0] if isinstance(tokenizer.eos_token_id, list) else tokenizer.eos_token_id),
             "use_cache": True,
         }
 
