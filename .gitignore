@@ -29,10 +29,11 @@ ENV/
 java_poc/
 character_draft/
 
-# history / telemetry / profiles / lorebooks / images / voice samples folders
+# history / telemetry / profiles / user_profiles / lorebooks / images / voice samples folders
 history/
 telemetry/
 profiles/
+user_profiles/
 wyvern_cards/
 sillyTavern_cards/
 img/
