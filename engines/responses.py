@@ -393,6 +393,18 @@ def _perform_post_processing(
     """Handles background tasks like sentiment scoring and saving history."""
     try:
         reply = full_reply.strip()
+
+        # BLOCKER: Do not save error messages to history
+        error_markers = [
+            "System busy/unavailable.",
+            "[BRAIN ERROR]",
+            "Remote bridge error",
+        ]
+        if any(marker in reply for marker in error_markers):
+            if get_setting("debug_mode", False):
+                print(f"[DEBUG] Skipping history save due to error marker in reply: {reply[:50]}...")
+            return
+
         new_scene = current_scene
 
         # Parse for scene updates
