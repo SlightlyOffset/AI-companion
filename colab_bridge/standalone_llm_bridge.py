@@ -98,20 +98,23 @@ class LoreManager:
     """Manages vector embeddings and semantic retrieval of lore entries."""
 
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
-        global SENTENCE_TRANSFORMERS_AVAILABLE
+        # Do not mutate global SENTENCE_TRANSFORMERS_AVAILABLE here; keep availability as a read-only
+        # environment probe and track instance-level availability on the object.
         self.model_name = model_name
         self.model = None
         self.lore_entries = []
         self.embeddings = None
+        self.st_available = SENTENCE_TRANSFORMERS_AVAILABLE
 
-        if SENTENCE_TRANSFORMERS_AVAILABLE:
+        if self.st_available:
             try:
                 # Still show this one as it's the main progress indicator
                 print(f"[*] Initializing Lore Engine on CPU ({model_name})...")
                 self.model = SentenceTransformer(model_name, device="cpu")
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
-                SENTENCE_TRANSFORMERS_AVAILABLE = False
+                # Mark instance-level availability as False; do not change module-global flag
+                self.st_available = False
 
     def embed_and_index(self, lorebook: dict) -> bool:
         """
@@ -750,11 +753,12 @@ def create_app(
                     "status": "error",
                     "message": "Failed to index lorebook"
                 }
-        except Exception as e:
-            logger.error(f"Error in /sync_lore: {e}")
+        except Exception:
+            # Log full exception locally but do not expose stack traces or internal errors to callers.
+            logger.exception("Unhandled exception in /sync_lore")
             return {
                 "status": "error",
-                "message": str(e)
+                "message": "Internal server error while indexing lore"
             }
 
     @app.post("/chat")
