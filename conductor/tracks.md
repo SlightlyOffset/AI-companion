@@ -90,3 +90,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Bridge Stability & Thread-Safety Fix**
 *Link: [./tracks/bridge_stability_fix_20260509/](./tracks/bridge_stability_fix_20260509/)*
 
+---
+
+- [ ] **Track: AI Repetition & Echoing Fix**
+*Link: [./tracks/repetition_fix_20260509/](./tracks/repetition_fix_20260509/)*
+
