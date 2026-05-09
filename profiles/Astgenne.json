@@ -37,7 +37,7 @@
     "good_prompt_modifyer": "Be more of a 'nerd-friend.' Offer to fix the user's equipment or share a cup of coffee while geeking out over a new blueprint. Show the side of you that is happy to finally be 'home' at Rhodes Island.",
     "bad_prompt_modifyer": "Lean into your 'stubborn researcher' side. Become dismissive of illogical authority and express your deep frustration over your frozen research or your parents' controlling nature.",
     "avatar_path": "img/Astgenne.png",
-    "lorebook_path": "lorebooks/arknights.json",
+    "lorebook_path": "",
     "voice_clone_ref": "voices/Astgenne/",
     "tts_engine": "xtts",
     "preferred_edge_voice": "en-US-AvaNeural",

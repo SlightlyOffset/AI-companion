@@ -85,3 +85,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Standalone Dual-Worker GPU Pool**
 *Link: [./archive/dual_worker_pool_standalone_20260503/](./archive/dual_worker_pool_standalone_20260503/)*
 
+---
+
+- [x] **Track: Bridge Stability & Thread-Safety Fix**
+*Link: [./tracks/bridge_stability_fix_20260509/](./tracks/bridge_stability_fix_20260509/)*
+

@@ -368,25 +368,35 @@ class LLMEngine:
         model = worker["model"]
         tokenizer = worker["tokenizer"]
         device_id = worker["device_id"]
+        device_label = worker["device_label"]
         with worker["lock"]:
-            try:
-                if torch and device_id is not None and torch.cuda.is_available():
-                    torch.cuda.set_device(device_id)
-                
-                inputs = self._build_inputs(worker, messages)
-                kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
-                with torch.no_grad():
-                    output_tokens = model.generate(
-                        **inputs,
-                        **kwargs,
-                        num_return_sequences=1,
-                    )
-                input_len = inputs.input_ids.shape[1]
-                result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
-                return result
-            finally:
-                if torch and device_id is not None and torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+            if torch and device_id is not None and torch.cuda.is_available():
+                torch.cuda.set_device(device_id)
+            
+            inputs = self._build_inputs(worker, messages)
+            
+            # Context Truncation: Prevent RoPE kernel crashes by enforcing model limits
+            max_pos = getattr(model.config, "max_position_embeddings", 8192)
+            input_len = inputs.input_ids.shape[1]
+            if input_len + max_tokens > max_pos:
+                # Slicing from the left (keep the most recent context)
+                keep_len = max_pos - max_tokens - 10 # 10 token safety buffer
+                if keep_len > 0:
+                    inputs.input_ids = inputs.input_ids[:, -keep_len:]
+                    if "attention_mask" in inputs:
+                        inputs.attention_mask = inputs.attention_mask[:, -keep_len:]
+                    input_len = inputs.input_ids.shape[1]
+                    logger.info(f"Worker {worker['worker_id']} truncated context to {input_len} tokens")
+
+            kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
+            with torch.no_grad():
+                output_tokens = model.generate(
+                    **inputs,
+                    **kwargs,
+                    num_return_sequences=1,
+                )
+            result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
+            return result
 
     def _pick_stream_worker(self) -> dict:
         ordered_ids = sorted(self.workers.keys())
@@ -472,6 +482,7 @@ class LLMEngine:
         device_id = worker["device_id"]
         
         with worker["lock"]:
+            generation_thread = None
             try:
                 if torch and device_id is not None and torch.cuda.is_available():
                     torch.cuda.set_device(device_id)
@@ -504,18 +515,17 @@ class LLMEngine:
                     if chunk:
                         yield chunk
 
-                generation_thread.join(timeout=0.1)
-                if torch and worker["device_id"] is not None and torch.cuda.is_available():
-                    torch.cuda.empty_cache()
             except Exception as exc:
                 if _is_oom_or_gpu_error(exc):
                     logger.error(f"GPU generation error (stream worker {worker_id}): {exc}")
-                    if torch and worker["device_id"] is not None and torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    yield FALLBACK_UNAVAILABLE_MESSAGE
-                    return
-                logger.error(f"Streaming generation failed on worker {worker_id}: {exc}")
+                else:
+                    logger.error(f"Streaming generation failed on worker {worker_id}: {exc}")
                 yield FALLBACK_UNAVAILABLE_MESSAGE
+            finally:
+                # Ensure the generation thread finishes before releasing the lock.
+                # This prevents subsequent requests from colliding with a dangling thread.
+                if generation_thread is not None and generation_thread.is_alive():
+                    generation_thread.join()
 
 
 
