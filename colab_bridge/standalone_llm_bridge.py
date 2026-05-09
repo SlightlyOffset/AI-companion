@@ -277,7 +277,7 @@ class LLMEngine:
 
             if device_id is not None:
                 model_kwargs["device_map"] = f"cuda:{device_id}"
-                model_kwargs["torch_dtype"] = torch.float32
+                model_kwargs["dtype"] = torch.float32
                 model_kwargs["low_cpu_mem_usage"] = True
                 model_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
@@ -287,7 +287,7 @@ class LLMEngine:
                 )
             else:
                 model_kwargs["device_map"] = "cpu"
-                model_kwargs["torch_dtype"] = torch.float32
+                model_kwargs["dtype"] = torch.float32
 
             try:
                 model = AutoModelForCausalLM.from_pretrained(self.model_id, **model_kwargs)
