@@ -29,10 +29,11 @@ ENV/
 java_poc/
 character_draft/
 
-# history / telemetry / profiles / lorebooks / images / voice samples folders
+# history / telemetry / profiles / user_profiles / lorebooks / images / voice samples folders
 history/
 telemetry/
 profiles/
+user_profiles/
 wyvern_cards/
 sillyTavern_cards/
 img/
@@ -62,6 +63,10 @@ TODO.md
 
 # GitHub App credentials
 gha-creds-*.json
+
+# Kaggle API credentials
+.kaggle/
+remote_notebooks/
 
 # Test coverage reports
 .coverage

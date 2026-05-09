@@ -15,7 +15,7 @@
     "local_utility_model": "phi3",
     "memory_limit": 10,
     "suppress_errors": true,
-    "current_user_profile": "Zenith.json",
+    "current_user_profile": "Manganese.json",
     "current_character_profile": "Astgenne.json",
     "debug_mode": false,
     "clear_on_start": false,
@@ -26,8 +26,8 @@
     "overhaul_state_enabled": true,
     "overhaul_memory_enabled": true,
     "overhaul_planner_enabled": true,
-    "overhaul_candidates_enabled": false,
+    "overhaul_candidates_enabled": true,
     "overhaul_critic_enabled": false,
-    "overhaul_candidate_count": 4,
+    "overhaul_candidate_count": 2,
     "overhaul_style_profile": "balanced"
 }

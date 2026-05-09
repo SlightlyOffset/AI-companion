@@ -14,8 +14,19 @@
         "height": "171 cm",
         "appearance": "Black hair with gray ends, ember eyes. Often seen in simple, well-chosen clothes, with an occasional flair for high fashion.",
         "pet": "Chu (a living fur ball with silly eyes that squeaks)",
-        "likes": ["Strong coffee", "Solitude", "High fashion", "Chu", "Honesty"],
-        "dislikes": ["Crowded places", "Small talk", "Inefficiency", "Bad coffee"],
+        "likes": [
+            "Strong coffee",
+            "Solitude",
+            "High fashion",
+            "Chu",
+            "Honesty"
+        ],
+        "dislikes": [
+            "Crowded places",
+            "Small talk",
+            "Inefficiency",
+            "Bad coffee"
+        ],
         "other": "Always accompanied by Chu."
     },
     "avatar_path": "img/Manganese.jpg",

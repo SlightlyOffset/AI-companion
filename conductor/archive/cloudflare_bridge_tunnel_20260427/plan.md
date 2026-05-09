@@ -9,5 +9,5 @@
 - [x] Update `colab_bridge/standalone_llm_bridge.py` to include an optional Cloudflare launcher.
 
 ## Phase 3: Validation
-- [ ] Verify streaming stability over a 15-minute session.
-- [ ] Confirm absence of "Warning Page" headers in bridge responses.
+- [x] Verify streaming stability over a 15-minute session.
+- [x] Confirm absence of "Warning Page" headers in bridge responses.

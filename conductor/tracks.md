@@ -54,16 +54,39 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remote Semantic RAG (Colab/Kaggle Offloading)**
-*Link: [./tracks/remote_semantic_rag_20260427/](./tracks/remote_semantic_rag_20260427/)*
+- [x] **Track: Remote Semantic RAG (Colab/Kaggle Offloading)**
+*Link: [./archive/remote_semantic_rag_20260427/](./archive/remote_semantic_rag_20260427/)*
+
+---
+
+- [ ] **Track: Agentic Intelligence Integration (AI Agent with Task Execution)**
+*Link: [./tracks/agentic_intelligence_20260430/](./tracks/agentic_intelligence_20260430/)*
+**Status:** Design & Specification (Phase 0)
+**Description:** Transform t.ai from chat-only to autonomous agent capable of: instruction classification, action planning, skill execution (file I/O, code generation, app launching, system commands), permission management, memory enhancement, and autonomous heartbeat scheduling. 4-phase implementation plan covering foundation, extended skills, autonomous tasks, and safety/polish.
 
 ---
 
 - [x] **Track: Cloudflare Bridge Tunneling**
-*Link: [./tracks/cloudflare_bridge_tunnel_20260427/](./tracks/cloudflare_bridge_tunnel_20260427/)*
+*Link: [./archive/cloudflare_bridge_tunnel_20260427/](./archive/cloudflare_bridge_tunnel_20260427/)*
 
 
 ---
 
 - [x] **Track: Dual-Worker GPU Pool Architecture**
 *Link: [./archive/dual_gpu_pool_20260424/](./archive/dual_gpu_pool_20260424/)*
+
+---
+
+- [x] **Track: Integrated Transformers LLM Bridge (GPU Offloading)**
+*Link: [./archive/integrated_llm_bridge_20260501/](./archive/integrated_llm_bridge_20260501/)*
+
+---
+
+- [x] **Track: Standalone Dual-Worker GPU Pool**
+*Link: [./archive/dual_worker_pool_standalone_20260503/](./archive/dual_worker_pool_standalone_20260503/)*
+
+---
+
+- [x] **Track: Bridge Stability & Thread-Safety Fix**
+*Link: [./tracks/bridge_stability_fix_20260509/](./tracks/bridge_stability_fix_20260509/)*
+
