@@ -97,6 +97,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: TUI Image Rendering Fix**
+- [x] **Track: TUI Image Rendering Fix**
 *Link: [./tracks/tui_image_fix_20260509/](./tracks/tui_image_fix_20260509/)*
 
