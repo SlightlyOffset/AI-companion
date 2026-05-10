@@ -36,6 +36,15 @@ SIM_STREAM_REGEN_CHUNK_SIZE = 32
 SIM_STREAM_REGEN_DELAY_SECONDS = 0.001
 
 
+def _get_repetition_penalty() -> float:
+    penalty = get_setting("repetition_penalty", 1.15)
+    try:
+        penalty = float(penalty)
+    except (TypeError, ValueError):
+        return 1.15
+    return penalty if penalty > 0 else 1.15
+
+
 def _normalize_for_duplicate_check(text: str) -> str:
     normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
     return normalized
@@ -287,9 +296,15 @@ def update_rolling_summary(existing_core: str, new_messages: list, model: str,
 
 def _call_llm_once(messages: list, model: str, remote_url: str = None, temperature: float = 0.8, max_tokens: int = 1024) -> str:
     """Single-turn non-streaming helper used by candidate/reranker pipeline stages."""
+    repetition_penalty = _get_repetition_penalty()
     if remote_url:
         full_url = f"{remote_url.rstrip('/')}/chat"
-        payload = {"messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+        payload = {
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "repetition_penalty": repetition_penalty,
+        }
         response = requests.post(full_url, json=payload, stream=False, timeout=90)
         return _extract_remote_message_content(response)
 
@@ -297,7 +312,7 @@ def _call_llm_once(messages: list, model: str, remote_url: str = None, temperatu
         model=model,
         messages=messages,
         stream=False,
-        options={"temperature": temperature},
+        options={"temperature": temperature, "repeat_penalty": repetition_penalty},
     )
     return result["message"]["content"].strip()
 
@@ -309,11 +324,13 @@ def _generate_candidate_replies(messages: list, model: str, remote_url: str | No
     if remote_url:
         try:
             full_url = f"{remote_url.rstrip('/')}/chat"
+            repetition_penalty = _get_repetition_penalty()
             # Temperature average for the batch
             payload = {
                 "messages": messages,
                 "temperature": 0.85,
                 "max_tokens": 1024,
+                "repetition_penalty": repetition_penalty,
                 "n": candidate_count,
                 "use_rag": True
             }
@@ -504,6 +521,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     name = profile.get("name")
     model = profile.get("llm_model", get_setting("default_llm_model", "llama3"))
     remote_url = get_setting("remote_llm_url")
+    repetition_penalty = _get_repetition_penalty()
 
     if not history_profile_name:
         history_profile_name = name # Fallback to display name
@@ -712,6 +730,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                     "messages": messages, 
                     "temperature": generation_temperature, 
                     "max_tokens": 1024,
+                    "repetition_penalty": repetition_penalty,
                     "use_rag": True
                 }
                 response = requests.post(full_url, json=payload, stream=True, timeout=60)
@@ -723,7 +742,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                     model=model,
                     messages=messages,
                     stream=True,
-                    options={"temperature": generation_temperature},
+                    options={"temperature": generation_temperature, "repeat_penalty": repetition_penalty},
                 )
 
                 def ollama_gen():

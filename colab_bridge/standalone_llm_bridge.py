@@ -211,6 +211,7 @@ class ChatRequest(BaseModel):
     messages: list[Message]
     max_tokens: int = 1024
     temperature: float = 0.8
+    repetition_penalty: float = 1.15
     n: int = 1
     model: str = "default"
     use_rag: bool = False
@@ -348,12 +349,14 @@ class LLMEngine:
         prompt = "\n".join(prompt_lines)
         return tokenizer(prompt, return_tensors="pt").to(device_label)
 
-    def _generation_kwargs(self, tokenizer, max_tokens: int, temperature: float) -> dict:
+    def _generation_kwargs(self, tokenizer, max_tokens: int, temperature: float, repetition_penalty: float) -> dict:
         use_sampling = temperature > 0
+        safe_repetition_penalty = repetition_penalty if repetition_penalty > 0 else 1.15
         return {
             "max_new_tokens": max_tokens,
             "temperature": temperature if use_sampling else 1.0,
             "do_sample": use_sampling,
+            "repetition_penalty": safe_repetition_penalty,
             "pad_token_id": tokenizer.pad_token_id or (tokenizer.eos_token_id[0] if isinstance(tokenizer.eos_token_id, list) else tokenizer.eos_token_id),
             "use_cache": True,
         }
@@ -367,6 +370,7 @@ class LLMEngine:
         messages: list[dict],
         max_tokens: int,
         temperature: float,
+        repetition_penalty: float,
     ) -> str:
         model = worker["model"]
         tokenizer = worker["tokenizer"]
@@ -391,7 +395,12 @@ class LLMEngine:
                     input_len = inputs.input_ids.shape[1]
                     logger.info(f"Worker {worker['worker_id']} truncated context to {input_len} tokens")
 
-            kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
+            kwargs = self._generation_kwargs(
+                tokenizer,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                repetition_penalty=repetition_penalty,
+            )
             with torch.no_grad():
                 output_tokens = model.generate(
                     **inputs,
@@ -415,6 +424,7 @@ class LLMEngine:
         messages: list[dict],
         max_tokens: int = 1024,
         temperature: float = 0.8,
+        repetition_penalty: float = 1.15,
         n: int = 1,
     ) -> list[str]:
         if not self.ready:
@@ -443,6 +453,7 @@ class LLMEngine:
                         messages=messages,
                         max_tokens=max_tokens,
                         temperature=temperature,
+                        repetition_penalty=repetition_penalty,
                     )
                     results[task_idx] = candidate or FALLBACK_UNAVAILABLE_MESSAGE
                 except Exception as exc:
@@ -473,6 +484,7 @@ class LLMEngine:
         messages: list[dict],
         max_tokens: int = 1024,
         temperature: float = 0.8,
+        repetition_penalty: float = 1.15,
     ):
         if not self.ready:
             yield FALLBACK_UNAVAILABLE_MESSAGE
@@ -496,7 +508,12 @@ class LLMEngine:
                     skip_prompt=True,
                     skip_special_tokens=True,
                 )
-                kwargs = self._generation_kwargs(tokenizer, max_tokens=max_tokens, temperature=temperature)
+                kwargs = self._generation_kwargs(
+                    tokenizer,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    repetition_penalty=repetition_penalty,
+                )
                 generation_kwargs = {
                     **inputs,
                     **kwargs,
@@ -784,6 +801,7 @@ def create_app(
                 messages=messages,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
+                repetition_penalty=request.repetition_penalty,
                 n=request.n,
             )
             return {"candidates": candidates}
@@ -792,6 +810,7 @@ def create_app(
             messages=messages,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
+            repetition_penalty=request.repetition_penalty,
         )
         return StreamingResponse(stream, media_type="text/plain")
 
