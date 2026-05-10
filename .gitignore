@@ -81,3 +81,6 @@ t-ai.png
 
 # Security reports
 .gemini_security/
+
+# Gemini artifacts
+gemini_artifacts/
