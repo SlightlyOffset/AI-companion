@@ -14,7 +14,7 @@ import sys
 import ollama
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Input, Static, Label, Select, ProgressBar, Switch, TextArea
-from textual_image.widget import Image
+from textual_image.widget import Image, SixelImage, TGPImage, HalfcellImage
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import work, events
 from textual.reactive import reactive
@@ -151,6 +151,13 @@ class TaiMenu(App):
         ("AvaMultilingual (Female)", "en-US-AvaMultilingualNeural")
     ]
 
+    IMAGE_PROTOCOLS = [
+        ("Auto", "auto"),
+        ("Kitty", "kitty"),
+        ("Sixel", "sixel"),
+        ("Blocky", "blocky"),
+    ]
+
     # Global TTS queue
     tts_text_queue = queue.Queue()
     audio_file_queue = queue.Queue()
@@ -168,6 +175,49 @@ class TaiMenu(App):
         self.history_profile_name = ""
         self._current_char_avatar_path = None
         self._current_user_avatar_path = None
+
+    def _resolve_image_widget_type(self) -> type[Image]:
+        protocol = get_setting("image_protocol", "auto")
+        if protocol == "kitty":
+            return TGPImage
+        if protocol == "sixel":
+            return SixelImage
+        if protocol == "blocky":
+            return HalfcellImage
+        return Image
+
+    def _build_avatar_widget(self, image_path: str | None, widget_id: str):
+        widget_type = self._resolve_image_widget_type()
+        return widget_type(image_path, id=widget_id)
+
+    def _mount_avatar_widget(self, container_id: str, widget_id: str, image_path: str | None) -> None:
+        container = self.query_one(f"#{container_id}", Vertical)
+        desired_widget_type = self._resolve_image_widget_type()
+        try:
+            existing = self.query_one(f"#{widget_id}")
+        except Exception:
+            existing = None
+
+        if existing is not None:
+            if isinstance(existing, desired_widget_type):
+                existing.image = image_path
+                return
+            existing.remove()
+            self.call_after_refresh(self._mount_avatar_widget, container_id, widget_id, image_path)
+            return
+
+        container.mount(self._build_avatar_widget(image_path, widget_id))
+
+    def _set_avatar_image(self, container_id: str, widget_id: str, image_path: str | None) -> None:
+        try:
+            avatar_widget = self.query_one(f"#{widget_id}")
+            avatar_widget.image = image_path
+        except Exception:
+            self._mount_avatar_widget(container_id, widget_id, image_path)
+
+    def remount_avatar_widgets(self) -> None:
+        self._mount_avatar_widget("char_avatar_wrap", "avatar_portrait_character", self._current_char_avatar_path)
+        self._mount_avatar_widget("user_avatar_wrap", "avatar_portrait_user", self._current_user_avatar_path)
 
     def watch_show_sidebar(self, show: bool) -> None:
         """Called when show_sidebar reactive property changes."""
@@ -260,7 +310,7 @@ class TaiMenu(App):
             with Vertical(id="status_sidebar"):
                 yield Label("--- Character ---", classes="sidebar_header")
                 with Vertical(id="char_avatar_wrap", classes="avatar_container"):
-                    yield Image(self._current_char_avatar_path, id="avatar_portrait_character")
+                    yield self._build_avatar_widget(self._current_char_avatar_path, "avatar_portrait_character")
                 yield Label("Name: [bold magenta]None[/bold magenta]", id="lbl_char")
                 yield Label("Mood: [bold]Neutral[/bold]", id="lbl_mood")
                 yield Label("Relationship:", classes="sidebar_label")
@@ -269,7 +319,7 @@ class TaiMenu(App):
 
                 yield Label("--- User ---", classes="sidebar_header")
                 with Vertical(id="user_avatar_wrap", classes="avatar_container"):
-                    yield Image(self._current_user_avatar_path, id="avatar_portrait_user")
+                    yield self._build_avatar_widget(self._current_user_avatar_path, "avatar_portrait_user")
                 yield Label("User: [bold cyan]None[/bold cyan]", id="lbl_user")
 
                 yield Label("--- Settings ---", classes="sidebar_header")
@@ -291,6 +341,9 @@ class TaiMenu(App):
                     yield Label("Narration:", classes="setting_label")
                     yield Switch(value=get_setting("speak_narration", False), id="sw_narration")
 
+                yield Label("Image Protocol:", classes="sidebar_label")
+                yield Select([], id="image_protocol_select", prompt="Select Image Protocol")
+
                 yield Label("Companion Voice(for edge TTS):", classes="sidebar_label")
                 yield Select([], id="character_voice_select", prompt="Select Character Voice")
                 yield Label("Narration Voice(for edge TTS):", classes="sidebar_label")
@@ -311,6 +364,7 @@ class TaiMenu(App):
         self.populate_models()
         self.populate_voices()
         self.populate_tts_engines()
+        self.populate_image_protocols()
 
     def on_profile_selected(self, result: dict) -> None:
         """Callback handled when ProfileSelect screen is dismissed."""
@@ -350,6 +404,7 @@ class TaiMenu(App):
         self.populate_models()
         self.populate_voices()
         self.populate_tts_engines()
+        self.populate_image_protocols()
 
     @staticmethod
     def format_summary(summary: str) -> str:
@@ -460,6 +515,23 @@ class TaiMenu(App):
             self.character_profile["tts_engine"] = val
             save_json_atomic(self.char_path, self.character_profile)
             self.add_message(f"TTS engine switched to [bold]{val}[/bold]", role="system")
+        elif event.select.id == "image_protocol_select" and val is not None:
+            valid_protocols = {value for _, value in self.IMAGE_PROTOCOLS}
+            if val in valid_protocols and update_setting("image_protocol", val):
+                self.remount_avatar_widgets()
+                self.add_message(f"Image protocol set to [bold]{val}[/bold]", role="system")
+            else:
+                self.add_message(f"Failed to set image protocol to [bold]{val}[/bold]", role="system")
+
+    def populate_image_protocols(self) -> None:
+        """Populate image protocol selection and sync current setting."""
+        select = self.query_one("#image_protocol_select", Select)
+        select.set_options(self.IMAGE_PROTOCOLS)
+        valid_protocols = {value for _, value in self.IMAGE_PROTOCOLS}
+        current_protocol = get_setting("image_protocol", "auto")
+        if current_protocol not in valid_protocols:
+            current_protocol = "auto"
+        select.value = current_protocol
 
     def start_tts_worker(self) -> None:
         """Starts a worker thread for TTS generation and playback."""
@@ -625,14 +697,12 @@ class TaiMenu(App):
 
         try:
             if getattr(self, "_current_char_avatar_path", None) != state["char_avatar_abs"]:
-                char_img = self.query_one("#avatar_portrait_character", Image)
-                char_img.image = state["char_avatar_abs"]
                 self._current_char_avatar_path = state["char_avatar_abs"]
+                self._set_avatar_image("char_avatar_wrap", "avatar_portrait_character", state["char_avatar_abs"])
 
             if getattr(self, "_current_user_avatar_path", None) != state["user_avatar_abs"]:
-                user_img = self.query_one("#avatar_portrait_user", Image)
-                user_img.image = state["user_avatar_abs"]
                 self._current_user_avatar_path = state["user_avatar_abs"]
+                self._set_avatar_image("user_avatar_wrap", "avatar_portrait_user", state["user_avatar_abs"])
         except Exception:
             pass
 
