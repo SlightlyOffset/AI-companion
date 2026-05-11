@@ -21,13 +21,15 @@
     "clear_on_start": false,
     "auto_recap_on_start": true,
     "interaction_mode": "rp",
+    "repetition_penalty": 1.15,
     "overhaul_pipeline_enabled": true,
     "overhaul_instrumentation_enabled": true,
     "overhaul_state_enabled": true,
     "overhaul_memory_enabled": true,
     "overhaul_planner_enabled": true,
-    "overhaul_candidates_enabled": true,
+    "overhaul_candidates_enabled": false,
     "overhaul_critic_enabled": false,
     "overhaul_candidate_count": 2,
-    "overhaul_style_profile": "balanced"
+    "overhaul_style_profile": "balanced",
+    "image_protocol": "auto"
 }

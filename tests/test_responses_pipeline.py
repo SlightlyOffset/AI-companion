@@ -5,6 +5,47 @@ from engines.responses import _call_llm_once, get_respond_stream
 
 
 class TestResponsesPipeline(unittest.TestCase):
+    @patch("engines.responses.get_setting", return_value=1.25)
+    @patch("engines.responses.requests.post")
+    def test_call_llm_once_remote_sends_repetition_penalty(self, mock_post, _mock_get_setting):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "JSON remote reply"}}]
+        }
+        mock_response.text = ""
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+
+        _call_llm_once(
+            messages=[{"role": "user", "content": "Hi"}],
+            model="test-model",
+            remote_url="https://bridge.example",
+            temperature=0.7,
+            max_tokens=512,
+        )
+
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["repetition_penalty"], 1.25)
+        self.assertEqual(payload["temperature"], 0.7)
+        self.assertEqual(payload["max_tokens"], 512)
+
+    @patch("engines.responses.get_setting", return_value=1.3)
+    @patch("engines.responses.ollama.chat")
+    def test_call_llm_once_local_sends_repeat_penalty(self, mock_ollama_chat, _mock_get_setting):
+        mock_ollama_chat.return_value = {"message": {"content": "Local reply"}}
+
+        _call_llm_once(
+            messages=[{"role": "user", "content": "Hi"}],
+            model="test-model",
+            remote_url=None,
+            temperature=0.6,
+            max_tokens=300,
+        )
+
+        options = mock_ollama_chat.call_args.kwargs["options"]
+        self.assertEqual(options["repeat_penalty"], 1.3)
+        self.assertEqual(options["temperature"], 0.6)
+
     @patch("engines.responses.requests.post")
     def test_call_llm_once_remote_plain_text_fallback(self, mock_post):
         mock_response = MagicMock()
@@ -261,6 +302,7 @@ class TestResponsesPipeline(unittest.TestCase):
             "remote_llm_url": "https://bridge.example",
             "interaction_mode": "rp",
             "memory_limit": 15,
+            "repetition_penalty": 1.4,
         }.get(key, default)
         mock_get_pipeline_flags.return_value = {
             "enabled": True,
@@ -298,6 +340,8 @@ class TestResponsesPipeline(unittest.TestCase):
         chunks = list(get_respond_stream("Hi", profile, history_profile_name="test_profile", is_regeneration=False))
         self.assertIn("Remote candidate reply", "".join(chunks))
         self.assertTrue(mock_post.called)
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["repetition_penalty"], 1.4)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 *$py.class
+.ruff_cache/
 
 # OS generated files
 .DS_Store
@@ -81,3 +82,6 @@ t-ai.png
 
 # Security reports
 .gemini_security/
+
+# Gemini artifacts
+gemini_artifacts/

@@ -226,8 +226,15 @@ def app_commands(ops: str, suppress_output: bool = False):
              Fore.GREEN if is_enabled else Fore.RED)
         update_setting("suppress_errors", not is_enabled)
 
-    def _history(limit: int = 15):
+    def _history(args=None):
         """Displays the recent conversation history (CLI only)."""
+        limit = 15
+        if args and isinstance(args, str) and args.strip():
+            try:
+                limit = int(args.strip())
+            except ValueError:
+                pass
+
         if suppress_output:
             _log("[SYSTEM] History recap is already visible in TUI.", Fore.YELLOW)
             return

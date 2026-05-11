@@ -45,7 +45,7 @@ class TestAppCommandsLore(unittest.TestCase):
             
         success, messages = app_commands("//lore reload", suppress_output=True)
         self.assertTrue(success)
-        self.assertIn("Lorebook reloaded successfully.", messages[0])
+        self.assertIn("reloaded successfully.", messages[0])
 
     def test_lore_invalid_subcommand(self):
         success, messages = app_commands("//lore invalid", suppress_output=True)

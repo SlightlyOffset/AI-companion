@@ -144,6 +144,8 @@ Edit `settings.json` to customize your experience:
 * `memory_limit`: Control short-term memory limit (messages fed per prompt).
 * `auto_recap_on_start`: Let the AI summarize the previous chat context upon booting.
 * `interaction_mode`: Set default mode (`rp` or `casual`).
+* `repetition_penalty`: Controls anti-repetition behavior for both local and remote generation (default `1.15`).
+* `image_protocol`: Choose avatar rendering protocol (`auto`, `kitty`, `sixel`, `blocky`).
 
 ---
 
