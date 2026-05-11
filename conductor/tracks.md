@@ -88,15 +88,14 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: Bridge Stability & Thread-Safety Fix**
-*Link: [./tracks/bridge_stability_fix_20260509/](./tracks/bridge_stability_fix_20260509/)*
+*Link: [./archive/bridge_stability_fix_20260509/](./archive/bridge_stability_fix_20260509/)*
 
 ---
 
-- [ ] **Track: AI Repetition & Echoing Fix**
-*Link: [./tracks/repetition_fix_20260509/](./tracks/repetition_fix_20260509/)*
+- [x] **Track: AI Repetition & Echoing Fix**
+*Link: [./archive/repetition_fix_20260509/](./archive/repetition_fix_20260509/)*
 
 ---
 
 - [x] **Track: TUI Image Rendering Fix**
-*Link: [./tracks/tui_image_fix_20260509/](./tracks/tui_image_fix_20260509/)*
-
+*Link: [./archive/tui_image_fix_20260509/](./archive/tui_image_fix_20260509/)*
