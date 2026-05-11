@@ -1,7 +1,7 @@
 import unittest
 import json
 import os
-from main import load_profile
+from legacy_main import load_profile
 
 class TestProfileValidation(unittest.TestCase):
     def setUp(self):

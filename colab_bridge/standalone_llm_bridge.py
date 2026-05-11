@@ -371,6 +371,7 @@ class LLMEngine:
         max_tokens: int,
         temperature: float,
         repetition_penalty: float,
+        **kwargs,
     ) -> str:
         model = worker["model"]
         tokenizer = worker["tokenizer"]
@@ -384,27 +385,39 @@ class LLMEngine:
             
             # Context Truncation: Prevent RoPE kernel crashes by enforcing model limits
             max_pos = getattr(model.config, "max_position_embeddings", 8192)
+            
+            # Ensure max_tokens doesn't exceed 90% of the total context window
+            max_tokens = min(max_tokens, int(max_pos * 0.9))
+            
             input_len = inputs.input_ids.shape[1]
             if input_len + max_tokens > max_pos:
                 # Slicing from the left (keep the most recent context)
                 keep_len = max_pos - max_tokens - 10 # 10 token safety buffer
-                if keep_len > 0:
-                    inputs.input_ids = inputs.input_ids[:, -keep_len:]
-                    if "attention_mask" in inputs:
-                        inputs.attention_mask = inputs.attention_mask[:, -keep_len:]
-                    input_len = inputs.input_ids.shape[1]
-                    logger.info(f"Worker {worker['worker_id']} truncated context to {input_len} tokens")
+                
+                # If keep_len is too small, force at least 128 tokens of context by shrinking max_tokens
+                if keep_len < 128:
+                    keep_len = 128
+                    max_tokens = max_pos - keep_len - 10
 
-            kwargs = self._generation_kwargs(
+                inputs.input_ids = inputs.input_ids[:, -keep_len:]
+                if "attention_mask" in inputs:
+                    inputs.attention_mask = inputs.attention_mask[:, -keep_len:]
+                input_len = inputs.input_ids.shape[1]
+                logger.info(f"Worker {worker['worker_id']} truncated context to {input_len} tokens")
+
+            gen_kwargs = self._generation_kwargs(
                 tokenizer,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 repetition_penalty=repetition_penalty,
             )
+            # Add any extra kwargs from the caller
+            gen_kwargs.update(kwargs)
+            
             with torch.no_grad():
                 output_tokens = model.generate(
                     **inputs,
-                    **kwargs,
+                    **gen_kwargs,
                     num_return_sequences=1,
                 )
             result = tokenizer.decode(output_tokens[0][input_len:], skip_special_tokens=True).strip()
@@ -426,6 +439,7 @@ class LLMEngine:
         temperature: float = 0.8,
         repetition_penalty: float = 1.15,
         n: int = 1,
+        **kwargs,
     ) -> list[str]:
         if not self.ready:
             return self._fallback_candidates(n)
@@ -454,6 +468,7 @@ class LLMEngine:
                         max_tokens=max_tokens,
                         temperature=temperature,
                         repetition_penalty=repetition_penalty,
+                        **kwargs,
                     )
                     results[task_idx] = candidate or FALLBACK_UNAVAILABLE_MESSAGE
                 except Exception as exc:
@@ -485,6 +500,7 @@ class LLMEngine:
         max_tokens: int = 1024,
         temperature: float = 0.8,
         repetition_penalty: float = 1.15,
+        **kwargs,
     ):
         if not self.ready:
             yield FALLBACK_UNAVAILABLE_MESSAGE
@@ -503,12 +519,29 @@ class LLMEngine:
                     torch.cuda.set_device(device_id)
 
                 inputs = self._build_inputs(worker, messages)
+                
+                # Context Truncation for Stream: Prevent RoPE kernel crashes
+                max_pos = getattr(model.config, "max_position_embeddings", 8192)
+                max_tokens = min(max_tokens, int(max_pos * 0.9))
+                input_len = inputs.input_ids.shape[1]
+                
+                if input_len + max_tokens > max_pos:
+                    keep_len = max_pos - max_tokens - 10
+                    if keep_len < 128:
+                        keep_len = 128
+                        max_tokens = max_pos - keep_len - 10
+                    
+                    inputs.input_ids = inputs.input_ids[:, -keep_len:]
+                    if "attention_mask" in inputs:
+                        inputs.attention_mask = inputs.attention_mask[:, -keep_len:]
+                    logger.info(f"Worker {worker_id} truncated stream context to {inputs.input_ids.shape[1]} tokens")
+
                 streamer = TextIteratorStreamer(
                     tokenizer,
                     skip_prompt=True,
                     skip_special_tokens=True,
                 )
-                kwargs = self._generation_kwargs(
+                gen_kwargs = self._generation_kwargs(
                     tokenizer,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -516,6 +549,7 @@ class LLMEngine:
                 )
                 generation_kwargs = {
                     **inputs,
+                    **gen_kwargs,
                     **kwargs,
                     "streamer": streamer,
                 }

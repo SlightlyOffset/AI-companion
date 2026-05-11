@@ -8,6 +8,7 @@ import threading
 import json
 import time
 import traceback
+import os
 import ollama
 import requests
 from datetime import datetime
@@ -524,7 +525,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     repetition_penalty = _get_repetition_penalty()
 
     if not history_profile_name:
-        history_profile_name = name # Fallback to display name
+        if profile_path:
+            history_profile_name = os.path.splitext(os.path.basename(profile_path))[0]
+        else:
+            history_profile_name = name # Fallback to display name
 
     # Load history and metadata
     full_data = memory_manager.get_full_data(history_profile_name)

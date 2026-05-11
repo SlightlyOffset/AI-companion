@@ -32,12 +32,12 @@ class FakeLLMEngine:
         self.last_stream_messages = None
         self.last_batch_messages = None
 
-    def generate_stream(self, messages, max_tokens=1024, temperature=0.8):
+    def generate_stream(self, messages, max_tokens=1024, temperature=0.8, repetition_penalty=1.15, **kwargs):
         self.last_stream_messages = messages
         yield "Hello"
         yield " world"
 
-    def generate_batch(self, messages, max_tokens=1024, temperature=0.8, n=1):
+    def generate_batch(self, messages, max_tokens=1024, temperature=0.8, repetition_penalty=1.15, n=1, **kwargs):
         self.last_batch_messages = messages
         return [f"candidate-{i}" for i in range(1, n + 1)]
 
