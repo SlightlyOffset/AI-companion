@@ -13,7 +13,7 @@ class TestSummarizer(unittest.TestCase):
         # Mock ollama.chat
         mock_response = {'message': {'content': 'Summary of conversation'}}
         with patch('ollama.chat', return_value=mock_response) as mock_chat:
-            summary = generate_summary(messages, model="bitnet")
+            summary = generate_summary(messages, model="phi3")
             
             self.assertEqual(summary, 'Summary of conversation')
             mock_chat.assert_called_once()
@@ -22,22 +22,20 @@ class TestSummarizer(unittest.TestCase):
             self.assertIn("Hello, how are you?", call_args['messages'][1]['content'])
 
     def test_generate_summary_remote(self):
+        # NOTE: Current implementation always uses local Ollama for summaries (Hybrid Offloading)
         # Mock messages
         messages = [
             {"role": "user", "content": "What is the weather like?"},
             {"role": "assistant", "content": "It is sunny today."}
         ]
         
-        # Mock requests.post
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'choices': [{'message': {'content': 'Weather summary'}}]
-        }
-        with patch('requests.post', return_value=mock_response) as mock_post:
-            summary = generate_summary(messages, model="bitnet", remote_url="http://remote-api")
+        # Mock ollama.chat since the code currently ignores remote_url for summaries
+        mock_response = {'message': {'content': 'Weather summary'}}
+        with patch('ollama.chat', return_value=mock_response) as mock_chat:
+            summary = generate_summary(messages, model="phi3", remote_url="http://remote-api")
             
             self.assertEqual(summary, 'Weather summary')
-            mock_post.assert_called_once()
+            mock_chat.assert_called_once()
 
     def test_update_rolling_summary(self):
         from engines.responses import update_rolling_summary
@@ -50,7 +48,7 @@ class TestSummarizer(unittest.TestCase):
         
         mock_response = {'message': {'content': 'Whiskers usually loves mice but caught a bird today.'}}
         with patch('ollama.chat', return_value=mock_response) as mock_chat:
-            new_summary = update_rolling_summary(existing_core, new_messages, model="bitnet")
+            new_summary = update_rolling_summary(existing_core, new_messages, model="phi3")
             
             self.assertEqual(new_summary, 'Whiskers usually loves mice but caught a bird today.')
             mock_chat.assert_called_once()

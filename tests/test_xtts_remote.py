@@ -7,18 +7,29 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 class TestXTTSRemote(unittest.TestCase):
+    def setUp(self):
+        # Clear the uploaded voices cache for test isolation
+        from engines.xtts_remote import _UPLOADED_VOICES
+        _UPLOADED_VOICES.clear()
 
+    @patch('engines.xtts_remote.requests.get')
     @patch('engines.xtts_remote.requests.post')
     @patch('engines.xtts_remote.get_setting')
-    def test_generate_audio_remote_success(self, mock_get_setting, mock_post):
+    def test_generate_audio_remote_success(self, mock_get_setting, mock_post, mock_get):
         from engines.xtts_remote import generate_remote_xtts
-        mock_get_setting.return_value = "https://mock-bridge.ngrok.app"
+        mock_get_setting.side_effect = lambda k, d=None: "https://mock-bridge.ngrok.app" if k == "remote_tts_url" else d
         
-        # Mock successful response with binary content
+        # Mock ping and check_speaker (requests.get)
+        mock_get_resp = MagicMock()
+        mock_get_resp.status_code = 200
+        mock_get_resp.json.return_value = {"exists": True}
+        mock_get.return_value = mock_get_resp
+
+        # Mock successful response with binary content (requests.post)
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.content = b"fake-audio-data"
-        mock_post.return_value = mock_response
+        mock_response.iter_content.return_value = [b"fake-audio-data"]
+        mock_post.return_value.__enter__.return_value = mock_response
         
         # We need a dummy reference file for the test
         with open("dummy_ref.wav", "wb") as f: f.write(b"dummy")
