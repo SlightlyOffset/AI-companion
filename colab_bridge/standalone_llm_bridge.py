@@ -274,6 +274,10 @@ class LLMEngine:
             tokenizer = AutoTokenizer.from_pretrained(self.model_id, **tokenizer_kwargs)
             if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
                 tokenizer.pad_token = tokenizer.eos_token
+            
+            # Suppress clean_up_tokenization_spaces warning for BPE tokenizers
+            if hasattr(tokenizer, "clean_up_tokenization_spaces"):
+                tokenizer.clean_up_tokenization_spaces = False
 
             model_kwargs = {"trust_remote_code": True}
             if self.hf_token:
@@ -815,6 +819,10 @@ def create_app(
     @app.post("/chat")
     async def chat(request: ChatRequest):
         """Chat endpoint that streams responses, with optional server-side RAG."""
+        # Visual feedback for the bridge operator
+        user_msg = next((m.content for m in reversed(request.messages) if m.role == "user"), "...")
+        print(f"[*] Received request (n={request.n}): {user_msg[:50]}...")
+        
         # Prepare messages for LLM
         messages = [
             {"role": msg.role, "content": msg.content}
