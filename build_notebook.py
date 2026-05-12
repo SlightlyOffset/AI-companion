@@ -67,15 +67,18 @@ public_url = tunnel_manager.start()
 if public_url:
     app = create_app(tunnel_manager, lore_manager, llm_engine)
     import uvicorn
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
+    server = uvicorn.Server(config)
     try:
-        # Note: uvicorn.run blocks the thread, which is fine in a notebook cell.
-        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+        # Jupyter environments support top-level await
+        await server.serve()
     except KeyboardInterrupt:
         print("\\n[!] Server stopped by user.")
     finally:
         tunnel_manager._cleanup()
 else:
     print("[!] Failed to start Cloudflare tunnel.")
+
 '''
 
     # Construct the full code for the main execution cell
