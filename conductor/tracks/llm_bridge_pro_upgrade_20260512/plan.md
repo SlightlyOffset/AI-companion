@@ -1,8 +1,8 @@
 # Implementation Plan: LLM Bridge "Pro" Upgrade
 
 ## Phase 1: Preparation
-- [x] Review `standalone_llm_bridge.py` to extract core logic.
-- [~] Prepare the Markdown instructions for the new notebook.
+- [x] Review `standalone_llm_bridge.py` to extract core logic. f8c7230
+- [x] Prepare the Markdown instructions for the new notebook. f8c7230
 
 ## Phase 2: Implementation
 - [ ] **Step 1: Dependency Update.** Update Cell 1 to install `sentence-transformers` and `scikit-learn`.
