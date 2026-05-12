@@ -7,8 +7,9 @@
 ## AI and LLM (Inference)
 - **Ollama**: Primary local LLM execution engine.
 - **BitNet (1-bit LLM)**: Specialized lightweight models used for context summarization.
-- **Google Colab (Remote)**: Supported for offloading LLM inference via the `LLM_Bridge.ipynb`, enabling usage on low-end hardware with limited VRAM.
+- **Google Colab (Remote)**: Supported for offloading LLM inference via the `LLM_Bridge.ipynb`, enabling usage on low-end hardware with limited VRAM. Features parity with standalone script (OOM retry, context truncation, Semantic RAG).
 - **ollama (library)**: Python bindings for Ollama API.
+- **SentenceTransformers**: Used for server-side semantic retrieval and Lorebook indexing in the remote bridge.
 
 ## Text-to-Speech (TTS)
 - **edge-tts**: Primary engine using Microsoft Edge's high-fidelity neural voices.
