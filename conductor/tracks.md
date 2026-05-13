@@ -102,5 +102,25 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: LLM Bridge "Pro" Upgrade (Parity with Standalone)**
-*Link: [./archive/llm_bridge_pro_upgrade_20260512/](./archive/llm_bridge_pro_upgrade_20260512/)*
+- [ ] **Track: Remediation of VULN-001 (Prompt Injection in Sentiment Scoring)**
+*Link: [./tracks/vuln_001_sentiment_injection_20260513/](./tracks/vuln_001_sentiment_injection_20260513/)*
+
+---
+
+- [ ] **Track: Remediation of VULN-002 (VBScript Injection in Audio Playback)**
+*Link: [./tracks/vuln_002_vbscript_injection_20260513/](./tracks/vuln_002_vbscript_injection_20260513/)*
+
+---
+
+- [ ] **Track: Remediation of VULN-003 (Path Traversal in Character Profile Saving)**
+*Link: [./tracks/vuln_003_path_traversal_20260513/](./tracks/vuln_003_path_traversal_20260513/)*
+
+---
+
+- [ ] **Track: Remediation of VULN-004 (Privacy Leak to Unvalidated Remote Endpoints)**
+*Link: [./tracks/vuln_004_privacy_leak_20260513/](./tracks/vuln_004_privacy_leak_20260513/)*
+
+---
+
+- [ ] **Track: Remediation of VULN-005 (Information Exposure of Sensitive Settings)**
+*Link: [./tracks/vuln_005_info_exposure_20260513/](./tracks/vuln_005_info_exposure_20260513/)*
