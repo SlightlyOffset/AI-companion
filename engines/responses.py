@@ -654,7 +654,14 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
     critic_applied = False
 
     try:
-        if pipeline_flags["enabled"] and (pipeline_flags["candidates"] or pipeline_flags["critic"]):
+        # Only use the non-streaming candidate/critic pipeline if multiple candidates are requested or critic is enabled.
+        # If candidates=True but count=1 (and no critic), we prefer real streaming for better UX.
+        use_pipeline_branch = pipeline_flags["enabled"] and (
+            (pipeline_flags["candidates"] and pipeline_flags["candidate_count"] > 1) or 
+            pipeline_flags["critic"]
+        )
+
+        if use_pipeline_branch:
             if canonical_state is None:
                 canonical_state = build_canonical_state(profile, full_data.get("metadata", {}), user_input)
 
@@ -767,49 +774,18 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                                             yield content
                 stream = ollama_gen()
 
-            # For regeneration, buffer first so we can detect/retry repetition before emitting UI chunks.
-            if is_regeneration:
-                for content in stream:
-                    full_reply += content
-
-                buffered_reply = full_reply.strip()
-                if (
-                    regeneration_previous_replies
-                    and buffered_reply
-                    and _is_duplicate_reply(buffered_reply, regeneration_previous_replies)
-                ):
-                    retry_messages = list(messages) + [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Your previous attempt matched an earlier response. "
-                                "Generate a materially different continuation that still fits continuity."
-                            ),
-                        }
-                    ]
-                    try:
-                        buffered_reply = _call_llm_once(
-                            retry_messages,
-                            model=model,
-                            remote_url=remote_url,
-                            temperature=1.0,
-                        ).strip() or buffered_reply
-                    except Exception:
-                        pass
-
-                full_reply = buffered_reply
-                # Simulated streaming visual for regeneration
-                sim_chunk_size = SIM_STREAM_REGEN_CHUNK_SIZE
-                for index in range(0, len(full_reply), sim_chunk_size):
-                    yield full_reply[index : index + sim_chunk_size]
-                    time.sleep(SIM_STREAM_REGEN_DELAY_SECONDS)
-            else:
-                # Iterate through the generator stream — yield content directly, no tag filtering needed
-                for content in stream:
-                    full_reply += content
-                    yield content
+            # Iterate through the generator stream — yield content directly, no tag filtering needed
+            for content in stream:
+                full_reply += content
+                yield content
 
         # Spawn background post-processing thread (Hybrid + Async)
+        if pipeline_flags["enabled"] and not selected_metrics and full_reply:
+            if canonical_state is None:
+                canonical_state = build_canonical_state(profile, full_data.get("metadata", {}), user_input)
+            selected_metrics = score_candidate(full_reply, canonical_state, narrative_plan, interaction_mode)
+            candidate_metrics = [selected_metrics]
+
         post_process_thread = threading.Thread(
             target=_perform_post_processing,
             kwargs={

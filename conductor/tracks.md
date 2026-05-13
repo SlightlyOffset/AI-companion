@@ -99,3 +99,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: TUI Image Rendering Fix**
 *Link: [./archive/tui_image_fix_20260509/](./archive/tui_image_fix_20260509/)*
+
+---
+
+- [x] **Track: LLM Bridge "Pro" Upgrade (Parity with Standalone)**
+*Link: [./archive/llm_bridge_pro_upgrade_20260512/](./archive/llm_bridge_pro_upgrade_20260512/)*
