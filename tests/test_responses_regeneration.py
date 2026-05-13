@@ -165,7 +165,7 @@ class TestResponsesRegeneration(unittest.TestCase):
         ]
         full_history = [
             {"role": "user", "content": "Question"},
-            {"role": "assistant", "content": "Old answer"},
+            {"role": "assistant", "content": "Old answer", "alternatives": ["Old answer"], "selected_index": 0},
         ]
 
         mock_get_setting.side_effect = lambda key, default=None: {
@@ -178,7 +178,7 @@ class TestResponsesRegeneration(unittest.TestCase):
             "metadata": {"current_scene": "Room", "memory_core": ""}
         }
         mock_memory_manager.load_history.side_effect = [prompt_history, full_history]
-        mock_ollama_chat.return_value = [{"message": {"content": "Old answer"}}]
+        mock_ollama_chat.return_value = [{"message": {"content": "Duplicate response"}}]
 
         list(
             get_respond_stream(
@@ -189,11 +189,16 @@ class TestResponsesRegeneration(unittest.TestCase):
             )
         )
 
+        # Verification:
+        # 1. Diversity retry path (_call_llm_once) MUST NOT be called in live streaming
+        mock_call_once.assert_not_called()
+        
+        # 2. Bookkeeping SHOULD still happen (new alternative added)
         saved_history = mock_memory_manager.save_history.call_args[0][1]
         last_msg = saved_history[-1]
-        # In live streaming, we don't buffer to check for duplicates, so it remains 'Old answer'
-        self.assertEqual(last_msg["content"], "Old answer")
-        mock_call_once.assert_not_called()
+        self.assertEqual(len(last_msg["alternatives"]), 2)
+        self.assertEqual(last_msg["selected_index"], 1)
+        self.assertEqual(last_msg["content"], "Duplicate response")
 
     @patch("engines.responses.get_pipeline_flags", return_value={
         "enabled": True,

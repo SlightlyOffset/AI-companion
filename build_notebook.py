@@ -64,22 +64,26 @@ llm_engine = LLMEngine(model_id=MODEL_ID, hf_token=HF_TOKEN)
 
 # Start Tunnel and Server
 public_url = tunnel_manager.start()
-if public_url:
-    app = create_app(tunnel_manager, lore_manager, llm_engine)
-    import uvicorn
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
-    server = uvicorn.Server(config)
-    try:
-        # Jupyter environments support top-level await
-        await server.serve()
-    except KeyboardInterrupt:
-        print("\\n[!] Server stopped by user.")
-    finally:
-        tunnel_manager._cleanup()
-else:
-    print("[!] Failed to start Cloudflare tunnel.")
+app = create_app(tunnel_manager, lore_manager, llm_engine)
 
+if not public_url:
+    print(f"[*] Tunnel unavailable. Local bridge: http://localhost:8000")
+else:
+    print(f"[🚀] BRIDGE ONLINE: {public_url}")
+
+import uvicorn
+config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
+server = uvicorn.Server(config)
+
+try:
+    # Jupyter environments support top-level await
+    await server.serve()
+except KeyboardInterrupt:
+    print("\\n[!] Server stopped by user.")
+finally:
+    tunnel_manager._cleanup()
 '''
+
 
     # Construct the full code for the main execution cell
     cell_2_code = "# @title 2. Start Pro Bridge Server\n" + core_code + "\n" + runner_code

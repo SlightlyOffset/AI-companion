@@ -780,7 +780,7 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
                 yield content
 
         # Spawn background post-processing thread (Hybrid + Async)
-        if not selected_metrics and full_reply:
+        if pipeline_flags["enabled"] and not selected_metrics and full_reply:
             if canonical_state is None:
                 canonical_state = build_canonical_state(profile, full_data.get("metadata", {}), user_input)
             selected_metrics = score_candidate(full_reply, canonical_state, narrative_plan, interaction_mode)

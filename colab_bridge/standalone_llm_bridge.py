@@ -276,7 +276,8 @@ class LLMEngine:
                 tokenizer.pad_token = tokenizer.eos_token
             
             # Suppress clean_up_tokenization_spaces warning for BPE tokenizers
-            if hasattr(tokenizer, "clean_up_tokenization_spaces"):
+            # This is specifically for BPE (like Llama-3) where cleanup can be destructive.
+            if hasattr(tokenizer, "clean_up_tokenization_spaces") and "TokenizerFast" in str(type(tokenizer)):
                 tokenizer.clean_up_tokenization_spaces = False
 
             model_kwargs = {"trust_remote_code": True}
@@ -821,7 +822,11 @@ def create_app(
         """Chat endpoint that streams responses, with optional server-side RAG."""
         # Visual feedback for the bridge operator
         user_msg = next((m.content for m in reversed(request.messages) if m.role == "user"), "...")
-        print(f"[*] Received request (n={request.n}): {user_msg[:50]}...")
+        # Only log snippet if debug mode (simulated here via environment) is on to protect PII
+        if os.getenv("BRIDGE_DEBUG", "0").lower() in ("1", "true", "yes"):
+            logger.info(f"[*] Received request (n={request.n}): {user_msg[:50]}...")
+        else:
+            logger.info(f"[*] Received request (n={request.n}, messages={len(request.messages)})")
         
         # Prepare messages for LLM
         messages = [
