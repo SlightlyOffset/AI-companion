@@ -107,7 +107,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remediation of VULN-002 (VBScript Injection in Audio Playback)**
+- [x] **Track: Remediation of VULN-002 (VBScript Injection in Audio Playback)**
 *Link: [./tracks/vuln_002_vbscript_injection_20260513/](./tracks/vuln_002_vbscript_injection_20260513/)*
 
 ---

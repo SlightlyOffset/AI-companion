@@ -113,18 +113,21 @@ def save_pcm_as_wav(pcm_data, filename, sample_rate=24000, channels=1, sample_wi
 def play_audio_windows(filename):
     """Plays audio via VBScript or fallback on Windows."""
     abspath = os.path.abspath(filename)
-    escaped_abspath = abspath.replace("\\", "\\\\")
 
     # Method 1: VBScript (Hidden playback)
     vbs_path = os.path.join(os.environ["TEMP"], f"play_sound_{int(time.time())}.vbs")
-    vbs_content = f"""
+    vbs_content = """
     On Error Resume Next
     Set Sound = CreateObject("WMPlayer.OCX")
     If Err.Number <> 0 Then
         WScript.Quit 1
     End If
     Sound.settings.volume = 100
-    Sound.URL = "{escaped_abspath}"
+    If WScript.Arguments.Count > 0 Then
+        Sound.URL = WScript.Arguments(0)
+    Else
+        WScript.Quit 1
+    End If
     Sound.Controls.play
 
     ' Wait for media to load (max 5 seconds)
@@ -144,8 +147,9 @@ def play_audio_windows(filename):
     """
     try:
         with open(vbs_path, "w") as f: f.write(vbs_content)
-        # We use wscript.exe to run it. If it fails, subprocess will go to except.
-        result = subprocess.run(["wscript.exe", vbs_path], capture_output=True, timeout=35)
+        # We use wscript.exe to run it and pass the abspath as a command-line argument.
+        # This prevents VBScript injection as arguments are handled safely.
+        result = subprocess.run(["wscript.exe", vbs_path, abspath], capture_output=True, timeout=35)
         if result.returncode != 0:
             raise Exception("VBScript failed")
     except:
