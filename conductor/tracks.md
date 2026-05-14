@@ -112,7 +112,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remediation of VULN-003 (Path Traversal in Character Profile Saving)**
+- [x] **Track: Remediation of VULN-003 (Path Traversal in Character Profile Saving)**
 *Link: [./tracks/vuln_003_path_traversal_20260513/](./tracks/vuln_003_path_traversal_20260513/)*
 
 ---
