@@ -29,8 +29,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: implement mode switch on prompt crafting to enable casual conversation mode aside from roleplay mode**
-*Link: [./tracks/mode_switch_20260225/](./tracks/mode_switch_20260225/)*
+- [x] **Track: implement mode switch on prompt crafting to enable casual conversation mode aside from roleplay mode**
+*Link: [./archive/mode_switch_20260225/](./archive/mode_switch_20260225/)*
 
 ---
 
@@ -108,4 +108,4 @@ This file tracks all major tracks for the project. Each track has its own detail
 ---
 
 - [x] **Track: Remediation of VULN-002 (VBScript Injection in Audio Playback)**
-*Link: [./tracks/vuln_002_vbscript_injection_20260513/](./tracks/vuln_002_vbscript_injection_20260513/)*
+*Link: [./archive/vuln_002_vbscript_injection_20260513/](./archive/vuln_002_vbscript_injection_20260513/)*
