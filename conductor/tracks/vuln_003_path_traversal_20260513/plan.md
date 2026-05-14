@@ -1,7 +1,7 @@
 # Implementation Plan: VULN-003 Remediation
 
 ## Phase 1: Research & Reproduction
-- [ ] Create a unit test that attempts to import a character with a traversal name (e.g., `../../malicious`).
+- [x] Create a unit test that attempts to import a character with a traversal name (e.g., `../../malicious`). (4306b3c)
 
 ## Phase 2: Implementation
 - [ ] Implement `sanitize_profile_name` or use the existing one from `utilities.py` in `character_importer.py`.
