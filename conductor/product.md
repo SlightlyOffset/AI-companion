@@ -24,6 +24,7 @@ A lightweight, highly immersive AI companion that lives in the terminal. It feat
 - **Relationship & Mood Engine**: A persistent -100 to +100 meter that dictates the AI's tone, obedience, and emotional state.
 - **Profile-Dependent Personalities**: Customizable character profiles that dictate behavior, voice, and reaction styles.
 - **Visual Representation**: High-fidelity character portraits integrated into the TUI using Sixel/Kitty protocols for deeper immersion.
+- **Privacy-First Remote Offloading**: Mandatory HTTPS and optional PII redaction (Privacy Mode) to protect user data when utilizing remote LLM or TTS bridges.
 - **High-Performance CLI**: Beautiful terminal rendering with dynamic colors and styles, optimized for minimal CPU/RAM usage.
 
 ## Future Roadmap
