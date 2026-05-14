@@ -102,8 +102,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remediation of VULN-001 (Prompt Injection in Sentiment Scoring)**
-*Link: [./tracks/vuln_001_sentiment_injection_20260513/](./tracks/vuln_001_sentiment_injection_20260513/)*
+- [x] **Track: Remediation of VULN-001 (Prompt Injection in Sentiment Scoring)**
+*Link: [./archive/vuln_001_sentiment_injection_20260513/](./archive/vuln_001_sentiment_injection_20260513/)*
 
 ---
 

@@ -5,9 +5,16 @@ from engines.responses import _call_llm_once, get_respond_stream
 
 
 class TestResponsesPipeline(unittest.TestCase):
-    @patch("engines.responses.get_setting", return_value=1.25)
+    @patch("engines.responses.get_setting")
     @patch("engines.responses.requests.post")
-    def test_call_llm_once_remote_sends_repetition_penalty(self, mock_post, _mock_get_setting):
+    def test_call_llm_once_remote_sends_repetition_penalty(self, mock_post, mock_get_setting):
+        def side_effect(key, default=None):
+            if key == "repetition_penalty":
+                return 1.25
+            if key == "privacy_mode":
+                return False
+            return default
+        mock_get_setting.side_effect = side_effect
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "choices": [{"message": {"content": "JSON remote reply"}}]
