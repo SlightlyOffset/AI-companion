@@ -8,4 +8,4 @@
 - [x] Update `_show_settings` to mask these values (e.g., `********`). f5c1088
 
 ## Phase 3: Validation
-- [ ] Run `//show_settings` and verify that sensitive values are masked.
+- [x] Run `//show_settings` and verify that sensitive values are masked. 349fad1
