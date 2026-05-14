@@ -38,6 +38,11 @@ SIM_STREAM_REGEN_CHUNK_SIZE = 32
 SIM_STREAM_REGEN_DELAY_SECONDS = 0.001
 
 
+def _redact_messages(messages: list) -> list:
+    """Helper to redact PII in message content for remote requests."""
+    return [{**msg, "content": redact_pii(msg["content"])} for msg in messages]
+
+
 def _get_repetition_penalty() -> float:
     penalty = get_setting("repetition_penalty", 1.15)
     try:
@@ -302,11 +307,9 @@ def _call_llm_once(messages: list, model: str, remote_url: str = None, temperatu
     if remote_url:
         # Redact PII for remote requests if Privacy Mode is active (VULN-004)
         if get_setting("privacy_mode", False):
-            # We don't have easy access to user/char names here without changing signature,
-            # but redact_pii handles None by only redacting emails/IPs.
-            # To be more thorough, we should pass names if possible.
+            user_name = get_setting("user_name", "User")
             messages = [
-                {**msg, "content": redact_pii(msg["content"])} 
+                {**msg, "content": redact_pii(msg["content"], user_name=user_name)} 
                 for msg in messages
             ]
 
@@ -337,8 +340,9 @@ def _generate_candidate_replies(messages: list, model: str, remote_url: str | No
         try:
             # Redact PII for remote requests if Privacy Mode is active (VULN-004)
             if get_setting("privacy_mode", False):
+                user_name = get_setting("user_name", "User")
                 messages = [
-                    {**msg, "content": redact_pii(msg["content"])} 
+                    {**msg, "content": redact_pii(msg["content"], user_name=user_name)} 
                     for msg in messages
                 ]
 
@@ -756,8 +760,10 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
             if remote_url:
                 # Redact PII for remote requests if Privacy Mode is active (VULN-004)
                 if get_setting("privacy_mode", False):
+                    user_name = get_setting("user_name", "User")
+                    char_name = profile.get("name", "Assistant")
                     messages = [
-                        {**msg, "content": redact_pii(msg["content"])} 
+                        {**msg, "content": redact_pii(msg["content"], user_name=user_name, char_name=char_name)} 
                         for msg in messages
                     ]
 

@@ -62,7 +62,11 @@ def get_setting(key, default=None):
         if isinstance(val, str) and not val.startswith("https://"):
             # We reject non-HTTPS URLs for remote services to prevent PII leaks
             from colorama import Fore
-            print(Fore.RED + f"[SECURITY WARNING] Insecure remote URL rejected for '{key}': {val}. Only HTTPS is allowed." + Fore.RESET)
+            warning_msg = (
+                f"[SECURITY WARNING] Insecure remote URL rejected for "
+                f"'{key}': {val}. Only HTTPS is allowed."
+            )
+            print(Fore.RED + warning_msg + Fore.RESET)
             return None
 
     return val

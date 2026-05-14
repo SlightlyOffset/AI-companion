@@ -128,7 +128,8 @@ def generate_remote_xtts(text, output_path, speaker_wav, language="en"):
 
     # Apply PII redaction for remote TTS if Privacy Mode is active (VULN-004)
     if get_setting("privacy_mode", False):
-        text = redact_pii(text)
+        user_name = get_setting("user_name", "User")
+        text = redact_pii(text, user_name=user_name)
 
     speaker_id = _get_speaker_id(speaker_wav)
     if isinstance(speaker_wav, str):
