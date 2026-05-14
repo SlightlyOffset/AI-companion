@@ -5,8 +5,8 @@
 - [x] Identify which PII is included in each request. (71c6083)
 
 ## Phase 2: Implementation
-- [~] Add URL validation logic to `engines/config.py`.
-- [ ] Update `TaiMenu` to show a warning when remote services are enabled.
+- [x] Add URL validation logic to `engines/config.py`. (323bced)
+- [~] Update `TaiMenu` to show a warning when remote services are enabled.
 - [ ] Implement a "Privacy Mode" setting to redact PII before sending if possible.
 
 ## Phase 3: Validation
