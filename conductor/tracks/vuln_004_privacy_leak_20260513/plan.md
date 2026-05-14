@@ -7,8 +7,8 @@
 ## Phase 2: Implementation
 - [x] Add URL validation logic to `engines/config.py`. (323bced)
 - [x] Update `TaiMenu` to show a warning when remote services are enabled. (2ed1310)
-- [~] Implement a "Privacy Mode" setting to redact PII before sending if possible.
+- [x] Implement a "Privacy Mode" setting to redact PII before sending if possible. (43f88cc)
 
 ## Phase 3: Validation
-- [ ] Verify that non-HTTPS URLs are rejected or trigger a strong warning.
+- [~] Verify that non-HTTPS URLs are rejected or trigger a strong warning.
 - [ ] Confirm the UI correctly reflects the status of remote data transmission.
