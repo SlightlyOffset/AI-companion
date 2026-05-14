@@ -132,6 +132,7 @@ class TaiMenu(App):
     ]
 
     show_sidebar = reactive(True)
+    remote_status = reactive("")
 
     CSS_PATH = "tcss/menu.tcss"
 
@@ -226,6 +227,15 @@ class TaiMenu(App):
         except Exception:
             pass # Widget is not mounted yet
 
+    def watch_remote_status(self, status: str) -> None:
+        """Update the remote warning label when status changes."""
+        try:
+            warning_lbl = self.query_one("#lbl_remote_warning", Label)
+            warning_lbl.update(status)
+            warning_lbl.display = bool(status)
+        except Exception:
+            pass
+
     def action_toggle_sidebar(self) -> None:
         """Toggle the status sidebar visibility."""
         self.show_sidebar = not self.show_sidebar
@@ -316,6 +326,8 @@ class TaiMenu(App):
                 yield Label("Relationship:", classes="sidebar_label")
                 yield ProgressBar(total=200, show_percentage=False, id="rel_bar")
                 yield Label("Score: [bold]0[/bold]", id="lbl_rel")
+
+                yield Label("", id="lbl_remote_warning", classes="remote_warning")
 
                 yield Label("--- User ---", classes="sidebar_header")
                 with Vertical(id="user_avatar_wrap", classes="avatar_container"):
@@ -711,6 +723,17 @@ class TaiMenu(App):
         self.query_one("#lbl_rel").update(state["rel_label"])
         self.query_one("#lbl_user").update(state["user_label"])
         self.query_one("#rel_bar").progress = state["rel_progress"]
+
+        # Update remote status warning (VULN-004)
+        remote_llm = get_setting("remote_llm_url")
+        remote_tts = get_setting("remote_tts_url")
+        if remote_llm or remote_tts:
+            services = []
+            if remote_llm: services.append("LLM")
+            if remote_tts: services.append("TTS")
+            self.remote_status = f"[bold red]Remote Active: {', '.join(services)}[/bold red]\n[dim]Data is sent to remote URLs.[/dim]"
+        else:
+            self.remote_status = ""
 
     def add_message(self, text, role="user", msg_data=None, message_number: int | None = None):
         container = self.query_one("#chat_list")
