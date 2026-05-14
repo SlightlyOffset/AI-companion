@@ -13,3 +13,6 @@
 - [x] Verify that non-HTTPS URLs are rejected or trigger a strong warning. (323bced)
 - [x] Confirm the UI correctly reflects the status of remote data transmission. (2ed1310)
 - [x] Verify PII redaction in remote transmission via tests. (43f88cc)
+
+## Phase 4: Review Fixes
+- [x] Task: Apply review suggestions (2b18e44)
