@@ -353,6 +353,10 @@ class TaiMenu(App):
                     yield Label("Narration:", classes="setting_label")
                     yield Switch(value=get_setting("speak_narration", False), id="sw_narration")
 
+                with Horizontal(classes="setting_row"):
+                    yield Label("Privacy Mode:", classes="setting_label")
+                    yield Switch(value=get_setting("privacy_mode", False), id="sw_privacy")
+
                 yield Label("Image Protocol:", classes="sidebar_label")
                 yield Select([], id="image_protocol_select", prompt="Select Image Protocol")
 
@@ -502,6 +506,9 @@ class TaiMenu(App):
         elif event.switch.id == "sw_narration":
             update_setting("speak_narration", event.value)
             self.add_message(f"Narration: {'[bold green]ON[/bold green]' if event.value else '[bold red]OFF[/bold red]'}", role="system")
+        elif event.switch.id == "sw_privacy":
+            update_setting("privacy_mode", event.value)
+            self.add_message(f"Privacy Mode: {'[bold green]ON[/bold green]' if event.value else '[bold red]OFF[/bold red]'}", role="system")
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Update the character profile with selected LLM, Character Voice, or Narration Voice."""

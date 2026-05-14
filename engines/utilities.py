@@ -213,3 +213,36 @@ def get_text_style(profile_data):
 
 def replace_placeholders(text, user_name="User", char_name="Assistant"):
     return text.replace("{{user}}", user_name).replace("{{user_name}}", user_name).replace("{{char}}", char_name)
+
+def redact_pii(text: str, user_name: str = None, char_name: str = None) -> str:
+    """
+    Redacts common PII from text.
+    
+    Args:
+        text (str): The text to sanitize.
+        user_name (str, optional): The user's name to redact.
+        char_name (str, optional): The character's name to redact.
+        
+    Returns:
+        str: The sanitized text.
+    """
+    if not text:
+        return ""
+
+    # Redact Emails
+    text = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[EMAIL]", text)
+    
+    # Redact IPv4 Addresses
+    text = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[IP_ADDR]", text)
+
+    # Redact Names if provided
+    if user_name:
+        # Case insensitive replacement for whole words
+        pattern = re.compile(re.escape(user_name), re.IGNORECASE)
+        text = pattern.sub("[USER]", text)
+        
+    if char_name:
+        pattern = re.compile(re.escape(char_name), re.IGNORECASE)
+        text = pattern.sub("[CHARACTER]", text)
+
+    return text

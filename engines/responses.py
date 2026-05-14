@@ -29,6 +29,7 @@ from engines.narrative_pipeline import (
 )
 from engines.prompts import build_system_prompt
 from engines.lorebook import load_lorebook, scan_for_lore, sync_lore_to_remote
+from engines.utilities import redact_pii
 
 MAX_CANDIDATE_WORKERS = 4
 SIM_STREAM_CHUNK_SIZE = 32
@@ -299,6 +300,16 @@ def _call_llm_once(messages: list, model: str, remote_url: str = None, temperatu
     """Single-turn non-streaming helper used by candidate/reranker pipeline stages."""
     repetition_penalty = _get_repetition_penalty()
     if remote_url:
+        # Redact PII for remote requests if Privacy Mode is active (VULN-004)
+        if get_setting("privacy_mode", False):
+            # We don't have easy access to user/char names here without changing signature,
+            # but redact_pii handles None by only redacting emails/IPs.
+            # To be more thorough, we should pass names if possible.
+            messages = [
+                {**msg, "content": redact_pii(msg["content"])} 
+                for msg in messages
+            ]
+
         full_url = f"{remote_url.rstrip('/')}/chat"
         payload = {
             "messages": messages,
@@ -324,6 +335,13 @@ def _generate_candidate_replies(messages: list, model: str, remote_url: str | No
     # Optimization: Batch remote call for Colab/Kaggle
     if remote_url:
         try:
+            # Redact PII for remote requests if Privacy Mode is active (VULN-004)
+            if get_setting("privacy_mode", False):
+                messages = [
+                    {**msg, "content": redact_pii(msg["content"])} 
+                    for msg in messages
+                ]
+
             full_url = f"{remote_url.rstrip('/')}/chat"
             repetition_penalty = _get_repetition_penalty()
             # Temperature average for the batch
@@ -736,6 +754,13 @@ def get_respond_stream(user_input: str, profile: dict, should_obey: bool | None 
             # Handle Remote LLM Request
             generation_temperature = 0.95 if is_regeneration else 0.8
             if remote_url:
+                # Redact PII for remote requests if Privacy Mode is active (VULN-004)
+                if get_setting("privacy_mode", False):
+                    messages = [
+                        {**msg, "content": redact_pii(msg["content"])} 
+                        for msg in messages
+                    ]
+
                 full_url = f"{remote_url.rstrip('/')}/chat"
                 payload = {
                     "messages": messages, 

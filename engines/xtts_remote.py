@@ -8,7 +8,7 @@ import os
 import hashlib
 from colorama import Fore
 from engines.config import get_setting
-from engines.utilities import save_pcm_as_wav
+from engines.utilities import save_pcm_as_wav, redact_pii
 
 # In-memory cache to track which voices have been uploaded to the current session's bridge
 _UPLOADED_VOICES = set()
@@ -125,6 +125,10 @@ def generate_remote_xtts(text, output_path, speaker_wav, language="en"):
         if not get_setting("suppress_errors", False):
             print(Fore.RED + "[XTTS REMOTE] Error: 'remote_tts_url' not set." + Fore.RESET)
         return False
+
+    # Apply PII redaction for remote TTS if Privacy Mode is active (VULN-004)
+    if get_setting("privacy_mode", False):
+        text = redact_pii(text)
 
     speaker_id = _get_speaker_id(speaker_wav)
     if isinstance(speaker_wav, str):
