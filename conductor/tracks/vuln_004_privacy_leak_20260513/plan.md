@@ -1,11 +1,11 @@
 # Implementation Plan: VULN-004 Remediation
 
 ## Phase 1: Research & Audit
-- [ ] Document every instance where data is sent to a remote service.
-- [ ] Identify which PII is included in each request.
+- [x] Document every instance where data is sent to a remote service. (71c6083)
+- [x] Identify which PII is included in each request. (71c6083)
 
 ## Phase 2: Implementation
-- [ ] Add URL validation logic to `engines/config.py`.
+- [~] Add URL validation logic to `engines/config.py`.
 - [ ] Update `TaiMenu` to show a warning when remote services are enabled.
 - [ ] Implement a "Privacy Mode" setting to redact PII before sending if possible.
 
