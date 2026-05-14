@@ -112,5 +112,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remediation of VULN-005 (Information Exposure of Sensitive Settings)**
+- [x] **Track: Remediation of VULN-005 (Information Exposure of Sensitive Settings)**
 *Link: [./tracks/vuln_005_info_exposure_20260513/](./tracks/vuln_005_info_exposure_20260513/)*
