@@ -10,5 +10,6 @@
 - [x] Implement a "Privacy Mode" setting to redact PII before sending if possible. (43f88cc)
 
 ## Phase 3: Validation
-- [~] Verify that non-HTTPS URLs are rejected or trigger a strong warning.
-- [ ] Confirm the UI correctly reflects the status of remote data transmission.
+- [x] Verify that non-HTTPS URLs are rejected or trigger a strong warning. (323bced)
+- [x] Confirm the UI correctly reflects the status of remote data transmission. (2ed1310)
+- [x] Verify PII redaction in remote transmission via tests. (43f88cc)
