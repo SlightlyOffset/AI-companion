@@ -1,4 +1,4 @@
-# Implementation Plan: VULN-005 Remediation
+# Implementation Plan: VULN-005 Remediation [checkpoint: 644def6]
 
 ## Phase 1: Research
 - [x] Identify all potentially sensitive keys in `settings.json` (e.g., `HF_TOKEN`, `NGROK_TOKEN`, `remote_llm_url` if it contains a key).
