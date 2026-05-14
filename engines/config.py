@@ -42,18 +42,30 @@ def get_setting(key, default=None):
     """
     # Check env first (map 'remote_llm_url' to 'REMOTE_LLM_URL')
     env_val = os.getenv(key.upper())
+    val = None
     if env_val is not None:
         # Simple boolean/int conversion for env vars
-        if env_val.lower() == "true": return True
-        if env_val.lower() == "false": return False
-        try:
-            if "." in env_val: return float(env_val)
-            return int(env_val)
-        except ValueError:
-            return env_val
+        if env_val.lower() == "true": val = True
+        elif env_val.lower() == "false": val = False
+        else:
+            try:
+                if "." in env_val: val = float(env_val)
+                else: val = int(env_val)
+            except ValueError:
+                val = env_val
+    else:
+        settings = load_settings()
+        val = settings.get(key, default)
 
-    settings = load_settings()
-    return settings.get(key, default)
+    # Security Validation for remote URLs (VULN-004)
+    if key in ["remote_llm_url", "remote_tts_url"] and val:
+        if isinstance(val, str) and not val.startswith("https://"):
+            # We reject non-HTTPS URLs for remote services to prevent PII leaks
+            from colorama import Fore
+            print(Fore.RED + f"[SECURITY WARNING] Insecure remote URL rejected for '{key}': {val}. Only HTTPS is allowed." + Fore.RESET)
+            return None
+
+    return val
 
 def update_setting(key, value):
     """
