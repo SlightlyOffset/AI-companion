@@ -8,4 +8,4 @@
 - [x] Add explicit checks to ensure the `target_path` is relative to the `profiles/` root. (646342d)
 
 ## Phase 3: Validation
-- [ ] Verify that the unit test now saves the file safely within the `profiles/` directory (or fails gracefully).
+- [x] Verify that the unit test now saves the file safely within the `profiles/` directory (or fails gracefully). (6fa3010)
