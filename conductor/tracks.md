@@ -112,11 +112,6 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [x] **Track: Remediation of VULN-003 (Path Traversal in Character Profile Saving)**
-*Link: [./tracks/vuln_003_path_traversal_20260513/](./tracks/vuln_003_path_traversal_20260513/)*
-
----
-
 - [ ] **Track: Remediation of VULN-004 (Privacy Leak to Unvalidated Remote Endpoints)**
 *Link: [./tracks/vuln_004_privacy_leak_20260513/](./tracks/vuln_004_privacy_leak_20260513/)*
 
