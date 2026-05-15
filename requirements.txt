@@ -7,4 +7,4 @@ edge-tts
 pyttsx3
 python-dotenv
 Pillow
-
+pytest

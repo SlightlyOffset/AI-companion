@@ -237,12 +237,12 @@ def redact_pii(text: str, user_name: str = None, char_name: str = None) -> str:
 
     # Redact Names if provided
     if user_name:
-        # Case insensitive replacement for whole words
-        pattern = re.compile(re.escape(user_name), re.IGNORECASE)
+        # Case insensitive replacement for whole words only
+        pattern = re.compile(fr"\b{re.escape(user_name)}\b", re.IGNORECASE)
         text = pattern.sub("[USER]", text)
         
     if char_name:
-        pattern = re.compile(re.escape(char_name), re.IGNORECASE)
+        pattern = re.compile(fr"\b{re.escape(char_name)}\b", re.IGNORECASE)
         text = pattern.sub("[CHARACTER]", text)
 
     return text

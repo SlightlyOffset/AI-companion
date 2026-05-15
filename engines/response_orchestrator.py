@@ -36,6 +36,7 @@ def iterate_response_events(
     character_profile: dict,
     history_profile_name: str,
     is_regeneration: bool = False,
+    user_name: str = "User",
 ):
     """
     Yield response streaming events decoupled from UI concerns.
@@ -54,6 +55,7 @@ def iterate_response_events(
         character_profile,
         history_profile_name=history_profile_name,
         is_regeneration=is_regeneration,
+        user_name=user_name,
     ):
         full_response += chunk
         current_buffer += chunk
@@ -87,7 +89,7 @@ def iterate_response_events(
                 speak_enable=runtime["speak_enable"],
                 narration_enable=runtime["narration_enable"],
             ):
-                yield {"type": "tts", "payload": (cleaned, voice, engine, clone_ref, language)}
+                yield {"type": "tts", "payload": (cleaned, voice, engine, clone_ref, language, user_name)}
             last_point = point
 
         current_buffer = current_buffer[last_point:]
@@ -98,6 +100,7 @@ def iterate_response_events(
         engine = runtime["narrator_engine"] if tts_in_narration else runtime["char_engine"]
         clone_ref = None if tts_in_narration else runtime["char_clone_ref"]
         language = "en" if tts_in_narration else runtime["char_language"]
+
         if cleaned and _should_enqueue_segment(
             voice=voice,
             char_voice=runtime["char_voice"],
@@ -105,6 +108,7 @@ def iterate_response_events(
             speak_enable=runtime["speak_enable"],
             narration_enable=runtime["narration_enable"],
         ):
-            yield {"type": "tts", "payload": (cleaned, voice, engine, clone_ref, language)}
+            yield {"type": "tts", "payload": (cleaned, voice, engine, clone_ref, language, user_name)}
 
     yield {"type": "complete", "full_response": full_response}
+

@@ -562,9 +562,9 @@ class TaiMenu(App):
         while True:
             data = self.tts_text_queue.get()
             if data is None: break
-            text, voice, engine, clone_ref, language = data
+            text, voice, engine, clone_ref, language, user_name = data
             temp_filename = os.path.join(os.environ.get("TEMP", "/tmp"), f"tts_{time.time()}.mp3")
-            if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref, language=language):
+            if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref, language=language, user_name=user_name):
                 self.audio_file_queue.put(temp_filename)
             self.tts_text_queue.task_done()
 
@@ -892,8 +892,8 @@ class TaiMenu(App):
         container, ai_msg, header = self._prepare_stream_widgets(is_regeneration, message_number=message_number)
         self._stream_response_worker(message, is_regeneration, container, ai_msg, header)
 
-    @work(thread=True)
-    def _stream_response_worker(
+    @work(exclusive=True, thread=True)
+    def response_worker(
         self,
         message: str,
         is_regeneration: bool,
@@ -903,12 +903,16 @@ class TaiMenu(App):
     ) -> None:
         """Worker to handle the LLM streaming and TTS queuing."""
         full_response = ""
+        user_name = self.user_profile.get("name", "User") if self.user_profile else "User"
+
         for event in iterate_response_events(
             message=message,
             character_profile=self.character_profile,
             history_profile_name=self.history_profile_name,
             is_regeneration=is_regeneration,
+            user_name=user_name,
         ):
+
             if event["type"] == "chunk":
                 full_response = event["full_response"]
                 self.app.call_from_thread(ai_msg.update, f"{header}\n{self.format_rp(full_response, role='assistant')}")

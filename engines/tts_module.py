@@ -194,7 +194,7 @@ def resolve_voice_refs(clone_ref):
     return resolved if resolved else None
 
 
-def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None, language="en"):
+def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None, language="en", user_name="User"):
     """
     Converts text to an MP3 or WAV file.
     Supports edge-tts (default) and XTTS.
@@ -263,7 +263,7 @@ def generate_audio(text, filename, voice=None, engine="edge-tts", clone_ref=None
             try:
                 # Use .wav for remote generation to ensure compatibility, then rename back
                 xtts_filename = filename if filename.endswith(".wav") else filename.replace(".mp3", ".wav")
-                if generate_remote_xtts(cleaned_text, xtts_filename, clone_ref, language=language):
+                if generate_remote_xtts(cleaned_text, xtts_filename, clone_ref, language=language, user_name=user_name):
                     # Save to cache
                     if os.path.exists(xtts_filename):
                         with open(xtts_filename, "rb") as f:
