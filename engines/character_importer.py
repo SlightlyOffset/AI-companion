@@ -139,16 +139,30 @@ class CharacterImporter:
         if not profile or not profile.get("name"):
             return False
 
+        from engines.utilities import sanitize_profile_name
+
         if not filename:
-            filename = profile["name"].replace(" ", "_") + ".json"
+            # Sanitize the name to prevent path traversal
+            safe_name = sanitize_profile_name(profile["name"])
+            filename = safe_name + ".json"
+
+        # Ensure we only have the basename of the filename
+        filename = os.path.basename(filename)
 
         if not filename.endswith(".json"):
             filename += ".json"
 
-        target_path = os.path.join("profiles", filename)
+        # Construct target path relative to profiles directory
+        profiles_dir = os.path.abspath("profiles")
+        target_path = os.path.abspath(os.path.join(profiles_dir, filename))
+
+        # Security check: Ensure the target path is still within the profiles directory
+        if not target_path.startswith(profiles_dir):
+            print(f"{Fore.RED}[ERROR] Path traversal attempt detected: {target_path}")
+            return False
 
         # Ensure profiles directory exists
-        os.makedirs("profiles", exist_ok=True)
+        os.makedirs(profiles_dir, exist_ok=True)
 
         try:
             with open(target_path, "w", encoding="utf-8") as f:

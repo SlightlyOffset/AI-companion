@@ -28,6 +28,17 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Path to conversation history files
 HISTORY_PATH = "history/"
 
+# List of settings keys that should be masked in the UI for security
+SENSITIVE_KEYS = [
+    "hf_token",
+    "ngrok_token",
+    "remote_llm_url",
+    "remote_tts_url",
+    "elevenlabs_api_key",
+    "openai_api_key",
+    "github_token"
+]
+
 class RestartRequested(Exception):
     """Exception raised to signal the main loop to restart the application."""
     pass
@@ -82,7 +93,11 @@ def app_commands(ops: str, suppress_output: bool = False):
         settings = load_settings()
         _log("[CURRENT SETTINGS]", Fore.YELLOW)
         for key, value in settings.items():
-            _log(f"  {key}: {value}", Fore.CYAN)
+            display_value = value
+            # Mask sensitive values to prevent accidental exposure (VULN-005)
+            if key.lower() in SENSITIVE_KEYS or any(s in key.lower() for s in ["token", "api_key", "secret"]):
+                display_value = "********"
+            _log(f"  {key}: {display_value}", Fore.CYAN)
 
     def _toggle_tts():
         """Toggles Text-to-Speech on or off."""

@@ -10,6 +10,7 @@
 - **Formatting**: Distinct colors and styles should clearly separate character dialogue from narration (actions).
 - **Visual Immersion**: Character portraits provide a constant visual anchor, enhancing the feeling of a "living" companion within the terminal.
 - **Status Indicators**: Minimalist indicators for the current profile and core status.
+- **Security Visibility**: Persistent UI warnings when remote offloading is active and clear privacy toggles to maintain user trust.
 
 ## Relationship Mechanics
 - **Tone and Obedience**: The relationship meter (-100 to +100) directly influences the AI's behavior. High scores yield cooperative and affectionate responses, while low scores trigger more resistant or sarcastic tones.

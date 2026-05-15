@@ -29,6 +29,7 @@
 
 ## Network and Communication
 - **requests**: HTTP library for communication with local/remote LLM APIs.
+- **Security & Privacy**: Enforced HTTPS for remote endpoints; regex-based PII redaction for Privacy Mode.
 
 ## Target Platform
 - **Windows (win32)**: Primary development and execution environment.

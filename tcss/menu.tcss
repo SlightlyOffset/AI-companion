@@ -139,6 +139,16 @@ ChatInput:focus {
     border: tall $accent;
 }
 
+.remote_warning {
+    color: $error;
+    background: $error-darken-3;
+    border: solid $error;
+    padding: 0 1;
+    margin: 1 0;
+    width: 100%;
+    text-align: center;
+}
+
 Label {
     margin: 1 0;
 }

@@ -132,6 +132,7 @@ class TaiMenu(App):
     ]
 
     show_sidebar = reactive(True)
+    remote_status = reactive("")
 
     CSS_PATH = "tcss/menu.tcss"
 
@@ -226,6 +227,15 @@ class TaiMenu(App):
         except Exception:
             pass # Widget is not mounted yet
 
+    def watch_remote_status(self, status: str) -> None:
+        """Update the remote warning label when status changes."""
+        try:
+            warning_lbl = self.query_one("#lbl_remote_warning", Label)
+            warning_lbl.update(status)
+            warning_lbl.display = bool(status)
+        except Exception:
+            pass
+
     def action_toggle_sidebar(self) -> None:
         """Toggle the status sidebar visibility."""
         self.show_sidebar = not self.show_sidebar
@@ -317,6 +327,8 @@ class TaiMenu(App):
                 yield ProgressBar(total=200, show_percentage=False, id="rel_bar")
                 yield Label("Score: [bold]0[/bold]", id="lbl_rel")
 
+                yield Label("", id="lbl_remote_warning", classes="remote_warning")
+
                 yield Label("--- User ---", classes="sidebar_header")
                 with Vertical(id="user_avatar_wrap", classes="avatar_container"):
                     yield self._build_avatar_widget(self._current_user_avatar_path, "avatar_portrait_user")
@@ -340,6 +352,10 @@ class TaiMenu(App):
                 with Horizontal(classes="setting_row"):
                     yield Label("Narration:", classes="setting_label")
                     yield Switch(value=get_setting("speak_narration", False), id="sw_narration")
+
+                with Horizontal(classes="setting_row"):
+                    yield Label("Privacy Mode:", classes="setting_label")
+                    yield Switch(value=get_setting("privacy_mode", False), id="sw_privacy")
 
                 yield Label("Image Protocol:", classes="sidebar_label")
                 yield Select([], id="image_protocol_select", prompt="Select Image Protocol")
@@ -490,6 +506,9 @@ class TaiMenu(App):
         elif event.switch.id == "sw_narration":
             update_setting("speak_narration", event.value)
             self.add_message(f"Narration: {'[bold green]ON[/bold green]' if event.value else '[bold red]OFF[/bold red]'}", role="system")
+        elif event.switch.id == "sw_privacy":
+            update_setting("privacy_mode", event.value)
+            self.add_message(f"Privacy Mode: {'[bold green]ON[/bold green]' if event.value else '[bold red]OFF[/bold red]'}", role="system")
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Update the character profile with selected LLM, Character Voice, or Narration Voice."""
@@ -543,9 +562,9 @@ class TaiMenu(App):
         while True:
             data = self.tts_text_queue.get()
             if data is None: break
-            text, voice, engine, clone_ref, language = data
+            text, voice, engine, clone_ref, language, user_name = data
             temp_filename = os.path.join(os.environ.get("TEMP", "/tmp"), f"tts_{time.time()}.mp3")
-            if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref, language=language):
+            if generate_audio(text, temp_filename, voice=voice, engine=engine, clone_ref=clone_ref, language=language, user_name=user_name):
                 self.audio_file_queue.put(temp_filename)
             self.tts_text_queue.task_done()
 
@@ -712,6 +731,17 @@ class TaiMenu(App):
         self.query_one("#lbl_user").update(state["user_label"])
         self.query_one("#rel_bar").progress = state["rel_progress"]
 
+        # Update remote status warning (VULN-004)
+        remote_llm = get_setting("remote_llm_url")
+        remote_tts = get_setting("remote_tts_url")
+        if remote_llm or remote_tts:
+            services = []
+            if remote_llm: services.append("LLM")
+            if remote_tts: services.append("TTS")
+            self.remote_status = f"[bold red]Remote Active: {', '.join(services)}[/bold red]\n[dim]Data is sent to remote URLs.[/dim]"
+        else:
+            self.remote_status = ""
+
     def add_message(self, text, role="user", msg_data=None, message_number: int | None = None):
         container = self.query_one("#chat_list")
         if role == "system":
@@ -862,8 +892,8 @@ class TaiMenu(App):
         container, ai_msg, header = self._prepare_stream_widgets(is_regeneration, message_number=message_number)
         self._stream_response_worker(message, is_regeneration, container, ai_msg, header)
 
-    @work(thread=True)
-    def _stream_response_worker(
+    @work(exclusive=True, thread=True)
+    def response_worker(
         self,
         message: str,
         is_regeneration: bool,
@@ -873,12 +903,16 @@ class TaiMenu(App):
     ) -> None:
         """Worker to handle the LLM streaming and TTS queuing."""
         full_response = ""
+        user_name = self.user_profile.get("name", "User") if self.user_profile else "User"
+
         for event in iterate_response_events(
             message=message,
             character_profile=self.character_profile,
             history_profile_name=self.history_profile_name,
             is_regeneration=is_regeneration,
+            user_name=user_name,
         ):
+
             if event["type"] == "chunk":
                 full_response = event["full_response"]
                 self.app.call_from_thread(ai_msg.update, f"{header}\n{self.format_rp(full_response, role='assistant')}")

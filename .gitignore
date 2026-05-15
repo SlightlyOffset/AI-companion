@@ -85,3 +85,7 @@ t-ai.png
 
 # Gemini artifacts
 gemini_artifacts/
+
+# Agent skills
+.agents/
+skills-lock.json
