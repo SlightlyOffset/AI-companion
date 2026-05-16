@@ -34,7 +34,63 @@ A lightweight, highly immersive, profile-based AI companion that lives in your t
 * **Dynamic Lorebook (World Info)**: Efficiently injects relevant world or character facts into the LLM context based on keywords detected in the conversation.
 * **Persistent History & Recaps**: Saves chat history persistently per profile and automatically generates a recap of your previous session on startup.
 
-### 🔒 Security & Privacy
+### 🎭 Creating & Importing Characters
+
+t.ai is highly customizable. You can import existing characters from the AI community or build your own from scratch.
+
+### 1. Importing SillyTavern Cards
+
+You can import `.png` character cards or `.json` definitions directly into the app:
+
+* **In-App**: Type `//import_card "C:\path\to\character.png"` while the chat is running.
+* **Batch**: Use the standalone `python card_importer.py` script to import entire directories of cards.
+
+### 2. Creating Custom Profiles
+
+To create a unique character or your own user profile, use the JSON templates found in the `template/` directory as a baseline.
+
+* **Character Profiles**: Copy `template/character_template.json` to the `profiles/` folder and rename it (e.g., `MyHero.json`).
+  * Fill in the `name`, `backstory`, and `system_prompt`.
+  * Set `preferred_edge_voice` or configure `voice_clone_ref` for XTTS voice cloning.
+* **User Profiles**: Copy `template/user_template.json` to the `user_profiles/` folder. This helps the AI remember *your* name, appearance, and personality.
+* **Lorebooks**: Use `template/lorebook_template.json` in the `lorebooks/` folder to create world-info triggers that inject context when specific keywords are mentioned.
+
+### 3. Voice Cloning Setup (XTTS)
+To give your character a specific voice:
+1. Create a folder in `voices/` (e.g., `voices/MyHero/`).
+2. Add one or more `.wav` samples of the voice (short clips, clean audio).
+3. In your character's `.json` profile, set `"tts_engine": "xtts"` and `"voice_clone_ref": "voices/MyHero"`.
+
+---
+
+## ☁️ Remote Inference & GPU Offloading
+
+If you have limited VRAM (less than 8GB) or want to use high-fidelity voice cloning (XTTS v2) without slowing down your PC, you can offload the "brain" and "voice" of your companion to Google Colab or Kaggle.
+
+### 🛠️ Setting up the Bridge
+1. **Open the Notebook**: Upload the `.ipynb` files from the `/colab_bridge` folder to Google Colab or Kaggle.
+   - `LLM_Bridge.ipynb`: For remote LLM inference (Stheno, Llama 3, etc.).
+   - `XTTS_Bridge.ipynb`: For high-speed voice cloning.
+2. **GPU Check**: Ensure your runtime type is set to **GPU** (T4 or better).
+3. **Configure Secrets**:
+   - Add your `HF_TOKEN` (Hugging Face) to the notebook "Secrets" or "Add-ons" section to allow model downloads.
+4. **Run All**: Execute all cells in the notebook.
+5. **Get the URL**: Wait for the **🚀 BRIDGE ONLINE!** message at the bottom. It will provide a Cloudflare tunnel URL (e.g., `https://random-words.trycloudflare.com`).
+
+### 🔗 Connecting to t.ai
+Open your local `settings.json` and paste the generated URLs:
+```json
+{
+  "remote_llm_url": "https://your-llm-bridge-url.trycloudflare.com",
+  "remote_tts_url": "https://your-xtts-bridge-url.trycloudflare.com"
+}
+```
+*Note: Remote inference features automatic OOM retries, context truncation, and semantic RAG support parity with the local engine.*
+
+---
+
+## 🔒 Security & Privacy
+
 
 * **Privacy-First Design**: Mandatory HTTPS for remote services and secure masking of API tokens/sensitive keys in the UI.
 * **Security Hardened**: Recently completed a comprehensive remediation sprint (May 2026) to address prompt injection (VULN-001), path traversal (VULN-003), and privacy leaks (VULN-004).
