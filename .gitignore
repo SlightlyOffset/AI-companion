@@ -89,3 +89,6 @@ gemini_artifacts/
 # Agent skills
 .agents/
 skills-lock.json
+
+# Marketing materials
+marketing/
