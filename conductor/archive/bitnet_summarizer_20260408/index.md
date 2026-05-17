@@ -1,4 +1,4 @@
-# BitNet Summarizer Track Index
+# Summarizer Track Index
 
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)

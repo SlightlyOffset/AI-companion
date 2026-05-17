@@ -16,7 +16,7 @@ A lightweight, highly immersive AI companion that lives in the terminal. It feat
 
 ## Key Features
 - **Zero-Latency Multi-Voice TTS**: Intelligent switching between narrator and character voices using multi-threaded queuing.
-- **BitNet Context Summarization**: Automatically condenses long histories (>15 messages) using lightweight 1-bit models to preserve context without bloating VRAM.
+- **Context Summarization**: Automatically condenses long histories (>15 messages) using lightweight 1-bit models to preserve context without bloating VRAM.
 - **Rolling Summarization & Memory Core Injection**: Automatically consolidates older chat history into a "Memory Core" that is injected into every AI interaction, ensuring long-term narrative recall without performance loss.
 - **Seamless TUI Profile Management**: Non-blocking selection screen for companion and user profiles, with automated restoration of the last active session.
 - **Dynamic Lorebook (World Info)**: Efficiently injects relevant world or character facts into the LLM context based on keywords detected in the recent conversation, enabling "infinite" world-building.

@@ -1,4 +1,4 @@
-# Implementation Plan - BitNet Context Summarization
+# Implementation Plan - Context Summarization
 
 ## Phase 1: Engine Preparation
 - [x] Create a `generate_summary` helper in `engines/responses.py` (or locally in `menu.py`) that interfaces with Ollama. (90cac64)

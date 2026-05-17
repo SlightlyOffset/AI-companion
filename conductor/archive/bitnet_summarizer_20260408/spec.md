@@ -1,11 +1,11 @@
-# Specification - BitNet Context Summarization
+# Specification - Context Summarization
 
 ## Overview
-Implement a context summarization feature that triggers when chat history exceeds a certain threshold (e.g., 15 messages). This uses a lightweight, 1-bit quantized model (BitNet) to condense older messages into a concise summary, preserving memory while minimizing VRAM usage.
+Implement a context summarization feature that triggers when chat history exceeds a certain threshold (e.g., 15 messages). This uses a lightweight model to condense older messages into a concise summary, preserving memory while minimizing VRAM usage.
 
 ## Functional Requirements
 - **Threshold Detection**: Automatically trigger summarization when history length > 15 messages.
-- **Lightweight Summarization**: Use a dedicated 1-bit model (e.g., `bitnet`) via Ollama to process the "old" history.
+- **Lightweight Summarization**: Use a dedicated model via Ollama to process the "old" history.
 - **Hybrid Context**:
     - Summarize older history (all but the last 5 messages).
     - Keep the most recent 5 messages as raw text for immediate continuity.
