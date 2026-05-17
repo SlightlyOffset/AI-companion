@@ -890,7 +890,7 @@ class TaiMenu(App):
     def stream_response(self, message: str, is_regeneration: bool = False, message_number: int | None = None) -> None:
         """Prepare UI targets on the main thread, then stream in a worker thread."""
         container, ai_msg, header = self._prepare_stream_widgets(is_regeneration, message_number=message_number)
-        self._stream_response_worker(message, is_regeneration, container, ai_msg, header)
+        self.response_worker(message, is_regeneration, container, ai_msg, header)
 
     @work(exclusive=True, thread=True)
     def response_worker(
