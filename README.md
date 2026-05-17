@@ -1,6 +1,6 @@
 # 🤖 t.ai - Terminal AI Desktop Companion
 
-**Current Status: [Alpha 0.1.1 Hotfix](https://github.com/SlightlyOffset/t.ai/releases/tag/v0.1.0-alpha)**
+**Current Status: [Alpha 0.1.1 Hotfix](https://github.com/SlightlyOffset/t.ai/releases/tag/v0.1.1-alpha)**
 
 A lightweight, highly immersive, profile-based AI companion that lives in your terminal. Built for roleplayers and AI enthusiasts who want a character that feels alive, remembers the past, and has a distinct personality.
 
